@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { Suspense, useActionState } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Logo } from "@/components/logo"
@@ -41,6 +41,14 @@ function Field({
 const initialState: AuthState = { error: null }
 
 export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
+  )
+}
+
+function LoginContent() {
   const searchParams = useSearchParams()
   const next = searchParams.get("next") || "/dashboard"
   const message = searchParams.get("message")

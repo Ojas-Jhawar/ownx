@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Check, FileText, ArrowRight, AlertTriangle } from "lucide-react"
 import { FlowShell } from "@/components/flow/flow-shell"
@@ -16,6 +16,14 @@ const CHECK_FIELDS: { key: keyof InvoiceExtraction; label: string }[] = [
 ]
 
 export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <ProcessingContent />
+    </Suspense>
+  )
+}
+
+function ProcessingContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const assetId = searchParams.get("assetId") || ""
