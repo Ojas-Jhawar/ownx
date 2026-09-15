@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { Suspense, useState, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { UploadCloud, ShieldCheck, ArrowLeft, ArrowRight, FileText, X } from "lucide-react"
 import { FlowShell } from "@/components/flow/flow-shell"
@@ -8,6 +8,14 @@ import { createClient } from "@/lib/supabase/client"
 import { createDraftAsset } from "@/app/actions/assets"
 
 export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <UploadContent />
+    </Suspense>
+  )
+}
+
+function UploadContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const capture = searchParams.get("capture") === "1"
