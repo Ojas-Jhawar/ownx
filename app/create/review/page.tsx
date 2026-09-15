@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { AlertCircle } from "lucide-react"
 import { FlowShell } from "@/components/flow/flow-shell"
@@ -61,6 +61,14 @@ function LabeledInput({
 }
 
 export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <ReviewContent />
+    </Suspense>
+  )
+}
+
+function ReviewContent() {
   const searchParams = useSearchParams()
   const assetId = searchParams.get("assetId") || ""
   const mode = searchParams.get("mode") === "manual" ? "manual" : "ai"
