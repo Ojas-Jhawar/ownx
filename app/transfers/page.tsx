@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server"
 import { formatDate } from "@/lib/format"
 import { TransferActions } from "@/components/transfers/transfer-actions"
 import type { Asset, OwnershipTransfer } from "@/lib/types"
+import { acceptDeviceTransfer, declineDeviceTransfer } from "@/app/actions/devices"
+import { DeviceTransferActions } from "@/components/transfers/device-transfer-actions"
 
 export default async function Page() {
   const supabase = await createClient()
@@ -28,6 +30,12 @@ export default async function Page() {
     supabase.from("ownership_transfers").select("*").eq("from_user_id", user.id).eq("status", "pending").order("created_at", { ascending: false }),
   ])
 
+  const { data: incomingDeviceRaw } = await supabase
+    .from("device_transfers")
+    .select("*, devices ( product_name, brand, ownx_id, image_url )")
+    .eq("status", "pending")
+    .ilike("to_email", user.email || "")
+    
   const incoming = (incomingRaw as OwnershipTransfer[]) || []
   const outgoing = (outgoingRaw as OwnershipTransfer[]) || []
   const assetIds = Array.from(new Set([...incoming, ...outgoing].map((t) => t.asset_id)))
@@ -44,6 +52,28 @@ export default async function Page() {
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Ownership Transfers</h1>
           <p className="mt-1 text-sm text-muted-foreground">Passports someone sent you, and ones you've sent out.</p>
         </div>
+
+
+	{incomingDeviceRaw && incomingDeviceRaw.length > 0 && (
+          <section className="mt-6">
+            <h2 className="text-sm font-semibold text-ink">New device sales awaiting your acceptance</h2>
+            <div className="mt-2 space-y-2">
+              {incomingDeviceRaw.map((t: any) => (
+                <div key={t.id} className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">{t.devices?.product_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-mono">{t.devices?.ownx_id}</span>
+                      {t.sale_price ? ` · ₹${t.sale_price}` : ""}
+                    </p>
+                  </div>
+                  <DeviceTransferActions transferId={t.id} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
 
         <section className="mt-6">
           <h2 className="text-sm font-semibold text-ink">Incoming</h2>

@@ -176,3 +176,80 @@ export interface InvoiceExtraction {
 // Supabase generated-types placeholder so `createClient<Database>()` type-checks.
 // Safe to leave as-is; it only affects editor autocomplete, not runtime behavior.
 export type Database = any
+
+// ----------------------------------------------------------------------------
+// Device Passport Platform
+// ----------------------------------------------------------------------------
+export type OrgType = "manufacturer" | "seller" | "repair_shop" | "admin"
+export type PlatformRole = "owner" | OrgType
+
+export interface Organization {
+  id: string
+  name: string
+  org_type: OrgType
+  verified: boolean
+  created_at: string
+}
+
+export interface OrganizationMember {
+  id: string
+  organization_id: string
+  user_id: string
+  role: "owner" | "staff"
+  created_at: string
+}
+
+export type DeviceStatus = "registered" | "sold" | "active" | "archived"
+
+export interface Device {
+  id: string
+  ownx_id: string
+  manufacturer_org_id: string | null
+  product_name: string
+  brand: string | null
+  category: string | null
+  model_number: string | null
+  serial_number: string | null
+  imei: string | null
+  manufactured_at: string | null
+  warranty_months: number | null
+  authenticity_notes: string | null
+  image_url: string | null
+  status: DeviceStatus
+  current_owner_id: string | null
+  asset_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type LifecycleEventType =
+  | "manufactured" | "sale_recorded" | "ownership_transfer_initiated" | "ownership_transfer_accepted"
+  | "repair" | "accessory_added" | "document_added" | "condition_update" | "note" | "verification"
+export type LifecycleStatus = "reported" | "documented" | "verified" | "confirmed"
+
+export interface LifecycleEvent {
+  id: string
+  device_id: string
+  event_type: LifecycleEventType
+  status: LifecycleStatus
+  actor_user_id: string | null
+  actor_org_id: string | null
+  title: string
+  detail: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface DeviceTransfer {
+  id: string
+  device_id: string
+  from_org_id: string | null
+  to_email: string
+  to_user_id: string | null
+  sale_price: number | null
+  invoice_document_id: string | null
+  note: string | null
+  status: "pending" | "accepted" | "declined" | "cancelled"
+  created_at: string
+  resolved_at: string | null
+}

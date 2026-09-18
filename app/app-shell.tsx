@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutGrid, ShieldCheck, Wrench, Store, Settings, Plus, ArrowRightLeft } from "lucide-react"
+import { LayoutGrid, ShieldCheck, Wrench, Store, Settings, Plus, ArrowRightLeft, Building2 } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { cn } from "@/lib/utils"
 import { initials } from "@/lib/format"
@@ -14,6 +14,7 @@ const NAV = [
   { label: "Service", href: "/service", icon: Wrench },
   { label: "Transfers", href: "/transfers", icon: ArrowRightLeft },
   { label: "Marketplace", href: "/marketplace", icon: Store },
+  { label: "Business", href: "/organization", icon: Building2 },
   { label: "Settings", href: "/settings", icon: Settings },
 ] as const
 

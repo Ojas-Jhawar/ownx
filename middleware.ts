@@ -15,3 +15,18 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 }
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/create",
+  "/passport",
+  "/service",
+  "/resale",
+  "/onboarding",
+  "/settings",
+  "/transfers",
+  "/organization",
+  "/manufacturer",
+  "/seller",
+  "/repair",
+  "/device",
+]

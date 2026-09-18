@@ -47,18 +47,7 @@ export async function initiateTransfer(assetId: string, formData: FormData) {
     note: note || null,
     status: "pending",
   })
-    const { data: linkedDevice } = await supabase.from("devices").select("id").eq("asset_id", assetId).maybeSingle()
-  if (linkedDevice) {
-    await supabase.from("lifecycle_events").insert({
-      device_id: linkedDevice.id,
-      event_type: "ownership_transfer_initiated",
-      status: "documented",
-      actor_user_id: user.id,
-      title: "Ownership transfer initiated",
-      detail: `Owner started a transfer to ${toEmail}.`,
-    })
-  }
-  
+
   if (error) throw new Error(error.message)
 
   revalidatePath(`/passport/${assetId}`)

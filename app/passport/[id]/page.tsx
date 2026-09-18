@@ -9,6 +9,7 @@ import { PassportTabs } from "@/components/passport/passport-tabs"
 import { PassportShareButton } from "@/components/passport/share-button"
 import { createClient } from "@/lib/supabase/server"
 import type { Asset, DocumentRow, ServiceRecord, OwnershipTransfer } from "@/lib/types"
+import { Pill } from "@/components/ui-kit"
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -48,6 +49,20 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     }),
   )
 
+    const { data: deviceRaw } = await supabase
+    .from("devices")
+    .select("id, ownx_id, product_name, manufactured_at, warranty_months, status, organizations:manufacturer_org_id ( name )")
+    .eq("asset_id", id)
+    .maybeSingle()
+
+  const { data: timelineRaw } = deviceRaw
+    ? await supabase
+        .from("lifecycle_events")
+        .select("*, organizations:actor_org_id ( name )")
+        .eq("device_id", (deviceRaw as any).id)
+        .order("created_at", { ascending: false })
+    : { data: [] as any[] }
+
   // Resolve display names for everyone who has ever held this passport.
   const pastTransfers = (pastTransfersRaw as OwnershipTransfer[]) || []
   const chainUserIds = Array.from(new Set(pastTransfers.flatMap((t) => [t.from_user_id, t.to_user_id]).filter(Boolean))) as string[]
@@ -75,7 +90,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               <ShieldCheck className="size-3.5" /> Verified
             </Pill>
           </div>
-          <div className="flex gap-2">
+	  <div className="flex gap-2">
+            {deviceRaw && (
+              <Pill tone="neutral">
+                <span className="font-mono">{(deviceRaw as any).ownx_id}</span>
+              </Pill>
+            )}
             <PassportShareButton assetId={asset.id} existingUrl={passportShareUrl} siteUrl={siteUrl} />
           </div>
         </div>
@@ -120,7 +140,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           </div>
 
           <div>
-            <PassportTabs
+                        <PassportTabs
               asset={asset}
               documents={documents}
               serviceRecords={(recordsRaw as ServiceRecord[]) || []}
@@ -133,6 +153,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 resolvedAt: t.resolved_at,
               }))}
               passportShare={shareRaw ? { id: shareRaw.id, slug: shareRaw.slug, url: passportShareUrl! } : null}
+              device={deviceRaw as any}
+              timeline={(timelineRaw as any[]) || []}
             />
 
             <div className="mt-4 rounded-2xl border border-border bg-card p-6">

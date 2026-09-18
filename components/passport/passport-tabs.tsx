@@ -3,9 +3,10 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Pencil, FileText, Download, Plus, Trash2, Send, X, Share2, Check, ShieldOff } from "lucide-react"
+import { Pencil, FileText, Download, Plus, Trash2, Send, X, Share2, Check, ShieldOff, History, ShieldCheck } from "lucide-react"
 import { updateAsset } from "@/app/actions/assets"
 import { deleteServiceRecord } from "@/app/actions/service"
+import { addOwnerNote } from "@/app/actions/devices"
 import { ServiceRecordForm } from "@/components/service/service-record-form"
 import { AiDiagnose } from "@/components/service/ai-diagnose"
 import { initiateTransfer, cancelTransfer } from "@/app/actions/transfers"
@@ -13,11 +14,12 @@ import { revokePassportShare } from "@/app/actions/shares"
 import { formatINR, formatDate } from "@/lib/format"
 import type { Asset, ServiceRecord, OwnershipTransfer } from "@/lib/types"
 
-const TABS = ["Overview", "Documents", "Service", "Ownership", "Share"] as const
+const BASE_TABS = ["Overview", "Documents", "Service", "Ownership", "Share"] as const
 
 type DocRow = { id: string; file_name: string | null; kind: string; url: string | null; created_at: string }
 type ChainLink = { id: string; fromName: string; toName: string; resolvedAt: string | null }
 type ShareInfo = { id: string; slug: string; url: string }
+type DeviceInfo = { id: string; ownx_id: string; status: string; warranty_months: number | null; organizations?: { name: string } | null } | null
 
 export function PassportTabs({
   asset,
@@ -27,6 +29,8 @@ export function PassportTabs({
   pendingTransfer,
   ownershipChain,
   passportShare,
+  device,
+  timeline,
 }: {
   asset: Asset
   documents: DocRow[]
@@ -35,7 +39,10 @@ export function PassportTabs({
   pendingTransfer: OwnershipTransfer | null
   ownershipChain: ChainLink[]
   passportShare: ShareInfo | null
+  device?: DeviceInfo
+  timeline?: any[]
 }) {
+  const TABS = device ? [...BASE_TABS, "Timeline" as const] : BASE_TABS
   const [tab, setTab] = useState<(typeof TABS)[number]>("Overview")
 
   return (
@@ -64,6 +71,7 @@ export function PassportTabs({
           <OwnershipTab asset={asset} ownerName={ownerName} pendingTransfer={pendingTransfer} chain={ownershipChain} />
         )}
         {tab === "Share" && <ShareTab asset={asset} share={passportShare} />}
+        {tab === "Timeline" && device && <TimelineTab device={device} timeline={timeline || []} />}
       </div>
     </div>
   )
@@ -468,6 +476,96 @@ function ShareTab({ asset, share }: { asset: Asset; share: ShareInfo | null }) {
           Use the <span className="font-medium text-ink">Share Passport</span> button above to create your link.
         </p>
       )}
+    </div>
+  )
+}
+
+
+
+const STATUS_TONE: Record<string, string> = {
+  reported: "bg-muted text-muted-foreground",
+  documented: "bg-amber-500/10 text-amber-600",
+  verified: "bg-brand-soft text-brand",
+  confirmed: "bg-emerald-500/10 text-emerald-600",
+}
+
+function TimelineTab({ device, timeline }: { device: NonNullable<DeviceInfo>; timeline: any[] }) {
+  const [pending, startTransition] = useTransition()
+  const router = useRouter()
+  const [error, setError] = useState<string | null>(null)
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="size-4 text-brand" />
+          <h2 className="font-semibold text-ink">Manufacturer-grade lifecycle</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          <span className="font-mono">{device.ownx_id}</span> · {device.organizations?.name && `Made by ${device.organizations.name}`}
+        </p>
+
+        <div className="mt-4 space-y-2">
+          {timeline.map((e) => (
+            <div key={e.id} className="rounded-xl border border-border bg-background p-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium text-ink">{e.title}</p>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase ${STATUS_TONE[e.status]}`}>
+                  {e.status}
+                </span>
+              </div>
+              {e.detail && <p className="mt-1 text-xs text-muted-foreground">{e.detail}</p>}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {formatDate(e.created_at)} {e.organizations?.name ? `· ${e.organizations.name}` : ""}
+              </p>
+            </div>
+          ))}
+          {timeline.length === 0 && <p className="text-sm text-muted-foreground">No events yet.</p>}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <h2 className="font-semibold text-ink">Add a note</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Owner notes are logged as <span className="font-medium">Reported</span> — only manufacturers and repair
+          shops can add Verified/Confirmed events.
+        </p>
+        {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+        <form
+          action={(fd) =>
+            startTransition(async () => {
+              setError(null)
+              try {
+                await addOwnerNote(device.id, fd)
+                router.refresh()
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Could not add note")
+              }
+            })
+          }
+          className="mt-3 space-y-2"
+        >
+          <input
+            name="title"
+            required
+            placeholder="e.g. Added a leather case"
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          />
+          <textarea
+            name="detail"
+            rows={2}
+            placeholder="Optional details"
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+          />
+          <button
+            type="submit"
+            disabled={pending}
+            className="rounded-full border border-border px-4 py-2 text-sm font-medium text-ink hover:bg-muted disabled:opacity-60"
+          >
+            <History className="mr-1.5 inline size-3.5" /> {pending ? "Saving…" : "Add note"}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
