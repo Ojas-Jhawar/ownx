@@ -9,7 +9,6 @@ import { PassportTabs } from "@/components/passport/passport-tabs"
 import { PassportShareButton } from "@/components/passport/share-button"
 import { createClient } from "@/lib/supabase/server"
 import type { Asset, DocumentRow, ServiceRecord, OwnershipTransfer } from "@/lib/types"
-import { Pill } from "@/components/ui-kit"
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
