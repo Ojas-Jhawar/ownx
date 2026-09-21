@@ -4,6 +4,8 @@ import { BadgeCheck, Check, ShieldCheck, Wrench } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { createClient } from "@/lib/supabase/server"
 import { formatINR, formatDate, warrantyRemaining, maskSerial } from "@/lib/format"
+import { getAssetVerification } from "@/lib/verification"
+import { VerificationBadge } from "@/components/verification/verification-badge"
 import type { Asset, ServiceRecord } from "@/lib/types"
 
 // Public page: no login required. Relies on the "Anyone can view active
@@ -51,6 +53,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const warranty = warrantyRemaining(asset.purchase_date, asset.warranty_months)
   const ownerCount = (transferCount || 0) + 1
 
+  // Real verification signal — see lib/verification.ts. Previously this page
+  // always rendered "Verified Passport" regardless of whether an org ever
+  // signed off on the asset.
+  const verification = await getAssetVerification(supabase, share.asset_id)
+
   const provenance = [
     "Original invoice on file",
     asset.serial_number ? "Serial verified" : null,
@@ -65,8 +72,10 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-xl shadow-ink/10">
           <div className="flex items-center justify-between bg-ink px-6 py-4">
             <Logo href="/" invert />
+            {/* Renamed from "Verified Passport" — see app/p/[slug]/page.tsx
+                for the same change and rationale. */}
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white">
-              <BadgeCheck className="size-3.5 text-brand" /> Verified Passport
+              <BadgeCheck className="size-3.5 text-brand" /> Ownx Passport
             </span>
           </div>
 
@@ -82,7 +91,10 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             </div>
 
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-ink">{asset.product_name || "Shared item"}</h1>
+              <div className="flex items-start justify-between gap-2">
+                <h1 className="text-xl font-semibold tracking-tight text-ink">{asset.product_name || "Shared item"}</h1>
+                <VerificationBadge status={verification} className="shrink-0" />
+              </div>
               <p className="mt-1 text-sm text-muted-foreground">{[asset.brand, asset.category].filter(Boolean).join(" · ") || "—"}</p>
               <p className="mt-3 text-sm text-muted-foreground">
                 Owned by <span className="font-medium text-ink">{ownerProfile?.full_name || "an Ownx user"}</span>

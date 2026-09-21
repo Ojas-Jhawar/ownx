@@ -15,18 +15,10 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 }
-const PROTECTED_PREFIXES = [
-  "/dashboard",
-  "/create",
-  "/passport",
-  "/service",
-  "/resale",
-  "/onboarding",
-  "/settings",
-  "/transfers",
-  "/organization",
-  "/manufacturer",
-  "/seller",
-  "/repair",
-  "/device",
-]
+
+// NOTE: route protection itself lives in lib/supabase/middleware.ts
+// (PROTECTED_PREFIXES there). A duplicate, unused list used to be declared
+// here — it wasn't wired to anything and was missing the newer
+// /organization, /manufacturer, /seller, /repair, /device routes, which
+// made it actively misleading. Removed; see lib/supabase/middleware.ts for
+// the real, now-updated list.

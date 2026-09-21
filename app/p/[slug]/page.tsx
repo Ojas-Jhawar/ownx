@@ -4,6 +4,8 @@ import { BadgeCheck, Check, ShieldCheck } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { createClient } from "@/lib/supabase/server"
 import { formatINR, warrantyRemaining } from "@/lib/format"
+import { getAssetVerification } from "@/lib/verification"
+import { VerificationBadge } from "@/components/verification/verification-badge"
 import type { Asset } from "@/lib/types"
 
 // Public page: no login required. Relies on the "Anyone can view active
@@ -37,6 +39,12 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
   const warranty = warrantyRemaining(asset.purchase_date, asset.warranty_months)
 
+  // Real verification signal: was this asset ever signed into existence by
+  // a manufacturer/seller, and has it stayed inside that verified network?
+  // (See lib/verification.ts — previously computed but never rendered
+  // anywhere; the header pill below said "Verified" unconditionally.)
+  const verification = await getAssetVerification(supabase, listing.asset_id)
+
   const provenance = [
     "Original invoice",
     asset.serial_number ? "Serial verified" : null,
@@ -51,8 +59,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-xl shadow-ink/10">
           <div className="flex items-center justify-between bg-ink px-6 py-4">
             <Logo href="/" invert />
+            {/* Renamed from "Verified Passport" — this pill just means "a
+                real Ownx record," not that an org has verified the asset.
+                The actual verification signal renders below as a badge. */}
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white">
-              <BadgeCheck className="size-3.5 text-brand" /> Verified Passport
+              <BadgeCheck className="size-3.5 text-brand" /> Ownx Passport
             </span>
           </div>
 
@@ -68,7 +79,10 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             </div>
 
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-ink">{asset.product_name || "Listed item"}</h1>
+              <div className="flex items-start justify-between gap-2">
+                <h1 className="text-xl font-semibold tracking-tight text-ink">{asset.product_name || "Listed item"}</h1>
+                <VerificationBadge status={verification} className="shrink-0" />
+              </div>
               <p className="mt-2 text-3xl font-semibold text-ink">{formatINR(listing.asking_price)}</p>
               <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
                 <span className="font-medium text-brand">
