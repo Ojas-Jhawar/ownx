@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
-import { randomSlug } from "@/lib/utils"
+import { randomShareToken } from "@/lib/utils"
 
 async function requireUser() {
   const supabase = await createClient()
@@ -18,6 +18,11 @@ async function requireUser() {
 // active one, so repeat clicks don't spawn duplicate links). Unlike a
 // listing, this carries no price and isn't an offer to sell — it's just a
 // verified, read-only view anyone with the link can open.
+//
+// SECURITY: uses randomShareToken() (crypto.randomUUID()-backed), not
+// randomSlug() — this slug is a bearer capability token gating service
+// history and asset details, so it needs real unguessability, not just
+// human-readable uniqueness. See lib/utils.ts for the rationale.
 export async function createOrGetPassportShare(assetId: string): Promise<{ slug: string }> {
   const { supabase, user } = await requireUser()
 
@@ -40,7 +45,7 @@ export async function createOrGetPassportShare(assetId: string): Promise<{ slug:
 
   if (assetError || !asset) throw new Error("Asset not found")
 
-  const slug = randomSlug(asset.product_name || "passport")
+  const slug = randomShareToken(asset.product_name || "passport")
 
   const { data, error } = await supabase
     .from("passport_shares")

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { Factory, Plus, ArrowRight, CheckCircle2 } from "lucide-react"
+import { Factory, Plus, ArrowRight, CheckCircle2, Clock } from "lucide-react"
 import { AppShell } from "@/components/app/app-shell"
 import { createClient } from "@/lib/supabase/server"
 import { createDevice } from "@/app/actions/devices"
@@ -15,12 +15,15 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
 
   const { data: memberships } = await supabase
     .from("organization_members")
-    .select("organization_id, organizations ( id, name, org_type )")
+    .select("organization_id, organizations ( id, name, org_type, verified )")
     .eq("user_id", user.id)
 
   const org = (memberships as any[] | null)?.map((m) => m.organizations).find((o: any) => o?.org_type === "manufacturer")
   if (!org) redirect("/organization")
 
+  // devices' own SELECT policy (migration 008) already means an unverified
+  // manufacturer can't see devices it doesn't own yet, but this list query
+  // only ever asked for devices this org registered, so it still works.
   const { data: devices } = await supabase
     .from("devices")
     .select("id, ownx_id, product_name, brand, category, status, created_at")
@@ -40,6 +43,19 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
           </div>
         </div>
 
+        {!org.verified && (
+          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+            <Clock className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <div>
+              <p className="font-medium text-ink">Pending verification</p>
+              <p className="mt-0.5 text-muted-foreground">
+                An Ownx admin needs to approve this organization before it can register devices. Device
+                registration is disabled below until then.
+              </p>
+            </div>
+          </div>
+        )}
+
         {created && (
           <div className="mt-5 flex items-center gap-2 rounded-2xl border border-brand/30 bg-brand-soft/60 p-4 text-sm text-ink">
             <CheckCircle2 className="size-4 text-brand" /> Device registered — Ownx ID{" "}
@@ -49,30 +65,36 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
 
         <details className="mt-6 rounded-2xl border border-border bg-card p-5" open={!devices || devices.length === 0}>
           <summary className="cursor-pointer font-semibold text-ink">Register a new device</summary>
-          <form action={createDevice} className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Field name="product_name" label="Product name" required />
-            <Field name="brand" label="Brand" />
-            <Field name="category" label="Category" placeholder="Laptop, Phone, Headphones…" />
-            <Field name="model_number" label="Model number" />
-            <Field name="serial_number" label="Serial number" />
-            <Field name="imei" label="IMEI (if applicable)" />
-            <Field name="manufactured_at" label="Manufactured on" type="date" />
-            <Field name="warranty_months" label="Warranty (months)" type="number" />
-            <div className="sm:col-span-2">
-              <label className="text-xs font-medium text-muted-foreground">Authenticity notes</label>
-              <textarea
-                name="authenticity_notes"
-                rows={2}
-                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-              />
-            </div>
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center gap-1.5 rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-brand-foreground transition-transform hover:-translate-y-0.5 sm:col-span-2"
-            >
-              <Plus className="size-4" /> Generate Ownx Passport
-            </button>
-          </form>
+          {org.verified ? (
+            <form action={createDevice} className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Field name="product_name" label="Product name" required />
+              <Field name="brand" label="Brand" />
+              <Field name="category" label="Category" placeholder="Laptop, Phone, Headphones…" />
+              <Field name="model_number" label="Model number" />
+              <Field name="serial_number" label="Serial number" />
+              <Field name="imei" label="IMEI (if applicable)" />
+              <Field name="manufactured_at" label="Manufactured on" type="date" />
+              <Field name="warranty_months" label="Warranty (months)" type="number" />
+              <div className="sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground">Authenticity notes</label>
+                <textarea
+                  name="authenticity_notes"
+                  rows={2}
+                  className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                />
+              </div>
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center gap-1.5 rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-brand-foreground transition-transform hover:-translate-y-0.5 sm:col-span-2"
+              >
+                <Plus className="size-4" /> Generate Ownx Passport
+              </button>
+            </form>
+          ) : (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Registration unlocks once an Ownx admin verifies this organization.
+            </p>
+          )}
         </details>
 
         <div className="mt-6 space-y-2">

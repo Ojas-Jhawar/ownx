@@ -52,9 +52,27 @@ export async function extractInvoiceData(params: {
   base64: string
   mediaType: "image/jpeg" | "image/png" | "image/webp" | "application/pdf"
 }): Promise<InvoiceExtraction> {
+  // NOTE: the installed @anthropic-ai/sdk@0.32.1 declares MessageParam's
+  // content union as TextBlockParam | ImageBlockParam | ToolUseBlockParam |
+  // ToolResultBlockParam — it does not include a document/PDF block variant
+  // in its TypeScript types, even though the Messages API itself accepts
+  // `{ type: "document", source: { type: "base64", media_type:
+  // "application/pdf", ... } }` at runtime. This was previously silently
+  // masked by `ignoreBuildErrors: true` in next.config.mjs rather than
+  // actually being type-sound.
+  //
+  // The correct long-term fix is bumping @anthropic-ai/sdk to a version
+  // whose types include DocumentBlockParam (check the SDK's CHANGELOG for
+  // when PDF support landed) and removing this cast entirely. Until then,
+  // this narrow `as any` is scoped to exactly the one field the SDK's types
+  // don't model, with the reason documented here, rather than disabling
+  // type-checking for the whole build.
   const contentBlock =
     params.mediaType === "application/pdf"
-      ? { type: "document" as const, source: { type: "base64" as const, media_type: params.mediaType, data: params.base64 } }
+      ? ({
+          type: "document",
+          source: { type: "base64", media_type: params.mediaType, data: params.base64 },
+        } as any)
       : { type: "image" as const, source: { type: "base64" as const, media_type: params.mediaType, data: params.base64 } }
 
   const response = await client.messages.create({

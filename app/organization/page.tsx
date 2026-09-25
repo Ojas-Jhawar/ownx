@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { Factory, Store, Wrench, ArrowRight, Building2 } from "lucide-react"
+import { Factory, Store, Wrench, ArrowRight, Building2, Clock } from "lucide-react"
 import { AppShell } from "@/components/app/app-shell"
 import { createClient } from "@/lib/supabase/server"
 import { createOrganization } from "@/app/actions/organizations"
@@ -11,7 +11,8 @@ const ORG_TYPES = [
   { value: "repair_shop", label: "Repair Shop", icon: Wrench, copy: "Look up any device and log verified repairs.", href: "/repair" },
 ] as const
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ created?: string }> }) {
+  const { created } = await searchParams
   const supabase = await createClient()
   const {
     data: { user },
@@ -35,6 +36,19 @@ export default async function Page() {
           </p>
         </div>
 
+        {created && (
+          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+            <Clock className="mt-0.5 size-4 shrink-0 text-amber-600" />
+            <div>
+              <p className="font-medium text-ink">Organization created — pending verification</p>
+              <p className="mt-0.5 text-muted-foreground">
+                An Ownx admin reviews every new business account before it can register devices, record sales, or
+                sign repairs. You can explore the dashboard now; those actions unlock once you&apos;re approved.
+              </p>
+            </div>
+          </div>
+        )}
+
         {myOrgs.length > 0 && (
           <div className="mt-6 space-y-3">
             {myOrgs.map((org: any) => {
@@ -51,7 +65,12 @@ export default async function Page() {
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-ink">{org.name}</p>
                     <p className="text-xs capitalize text-muted-foreground">
-                      {org.org_type.replace("_", " ")} · {org.verified ? "Verified" : "Pending verification"}
+                      {org.org_type.replace("_", " ")} ·{" "}
+                      {org.verified ? (
+                        <span className="text-brand">Verified</span>
+                      ) : (
+                        <span className="text-amber-600">Pending verification</span>
+                      )}
                     </p>
                   </div>
                   <ArrowRight className="size-4 text-muted-foreground" />
@@ -64,8 +83,9 @@ export default async function Page() {
         <div className="mt-8 rounded-2xl border border-dashed border-border bg-card p-6">
           <h2 className="font-semibold text-ink">Register a new organization</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            For this demo, any account can spin up a business role instantly — production would require Ownx admin
-            verification first.
+            New organizations start <span className="font-medium text-ink">pending verification</span>. An Ownx
+            admin reviews and approves before you can register devices, record sales, or sign repairs — this is what
+            makes the &ldquo;Verified&rdquo; badge on a passport actually mean something.
           </p>
           <form action={createOrganization} className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
             <input

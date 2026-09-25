@@ -11,6 +11,11 @@ const NAV = [
   { label: "How It Works", href: "/how-it-works" },
   { label: "Features", href: "/features" },
   { label: "Marketplace", href: "/marketplace" },
+  // Previously only linked from the footer — the device advisor and blog
+  // are real, working public pages with no sign-in required, so they belong
+  // in primary nav rather than being effectively hidden below the fold.
+  { label: "Device Advisor", href: "/tools/device-advisor" },
+  { label: "Blog", href: "/blog" },
   { label: "About", href: "/about" },
 ]
 
@@ -23,7 +28,7 @@ export function SiteHeader() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
         <Logo />
 
-        <nav className="hidden items-center gap-8 md:flex">
+        <nav className="hidden items-center gap-6 xl:flex">
           {NAV.map((item) => (
             <Link
               key={item.href}
@@ -38,7 +43,7 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-2 xl:flex">
           <Link
             href="/login"
             className="rounded-full px-4 py-2 text-sm font-medium text-ink-soft transition-colors hover:text-ink"
@@ -56,7 +61,7 @@ export function SiteHeader() {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="grid size-9 place-items-center rounded-lg border border-border text-ink md:hidden"
+          className="grid size-9 place-items-center rounded-lg border border-border text-ink xl:hidden"
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
         >
@@ -65,7 +70,7 @@ export function SiteHeader() {
       </div>
 
       {open && (
-        <div className="border-t border-border bg-background md:hidden">
+        <div className="border-t border-border bg-background xl:hidden">
           <nav className="mx-auto flex max-w-6xl flex-col gap-1 px-5 py-4">
             {NAV.map((item) => (
               <Link

@@ -14,9 +14,15 @@ async function requireUser() {
   return { supabase, user }
 }
 
-// Self-serve org creation for this demo. In production this would create the
-// org in a "pending" state and require Ownx admin verification before the
-// `verified` flag flips and the org can register/sign anything.
+// SECURITY: organizations are no longer auto-verified (see
+// supabase/migrations/008_security_hardening.sql, which flips the
+// `organizations.verified` column default to false). A brand-new org can
+// still be created here so the person can start filling out their profile,
+// but every action that mints a trust signal shown to the public — minting
+// an Ownx ID, recording a sale, or signing a repair — is blocked at the RLS
+// layer until an admin sets `verified = true`. Until then the org's own
+// dashboard pages show a "Pending verification" banner (see
+// app/organization/page.tsx).
 export async function createOrganization(formData: FormData) {
   const { supabase, user } = await requireUser()
 
@@ -29,7 +35,7 @@ export async function createOrganization(formData: FormData) {
 
   const { data: org, error } = await supabase
     .from("organizations")
-    .insert({ name, org_type: orgType })
+    .insert({ name, org_type: orgType }) // verified defaults to false (migration 008)
     .select("id")
     .single()
   if (error || !org) throw new Error(error?.message || "Could not create organization")
@@ -42,5 +48,24 @@ export async function createOrganization(formData: FormData) {
   await supabase.from("profiles").update({ platform_role: orgType }).eq("id", user.id)
 
   revalidatePath("/organization")
-  redirect(orgType === "manufacturer" ? "/manufacturer" : orgType === "seller" ? "/seller" : "/repair")
+  // Route to the shared /organization page rather than straight into the
+  // business dashboard — the dashboard now needs to show the pending-
+  // verification state, and /organization is where that copy lives.
+  redirect("/organization?created=1")
+}
+
+// Admin-only: approves a pending organization. Also gated by the RLS policy
+// "Admins can approve organizations" in migration 008 — this check here is
+// just so the person gets a clear error instead of a silent RLS no-op.
+export async function approveOrganization(organizationId: string) {
+  const { supabase, user } = await requireUser()
+
+  const { data: profile } = await supabase.from("profiles").select("platform_role").eq("id", user.id).single()
+  if (profile?.platform_role !== "admin") throw new Error("Admin access required")
+
+  const { error } = await supabase.from("organizations").update({ verified: true }).eq("id", organizationId)
+  if (error) throw new Error(error.message)
+
+  revalidatePath("/organization")
+  revalidatePath("/admin/organizations")
 }

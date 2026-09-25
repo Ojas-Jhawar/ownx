@@ -8,8 +8,14 @@ const COLUMNS = [
       { label: "How It Works", href: "/how-it-works" },
       { label: "Features", href: "/features" },
       { label: "Marketplace", href: "/marketplace" },
-      { label: "Buy vs Repair", href: "/tools/buy-vs-repair" },
-      { label: "Scrap Value", href: "/tools/scrap-value" },
+      // Was "/tools/buy-vs-repair" and "/tools/scrap-value" as two separate
+      // links — both routes are now just redirect() stubs pointing at the
+      // merged /tools/device-advisor page (see the comments in
+      // app/tools/buy-vs-repair/page.tsx and app/tools/scrap-value/page.tsx).
+      // Linking the stubs worked, but sent a visitor through two redirects
+      // for no reason and listed the same destination twice under different
+      // labels. Point straight at the canonical URL instead.
+      { label: "Device Advisor", href: "/tools/device-advisor" },
       { label: "Blog", href: "/blog" },
     ],
   },
