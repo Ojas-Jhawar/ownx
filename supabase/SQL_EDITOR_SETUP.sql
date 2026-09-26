@@ -1,5 +1,5 @@
 -- ============================================================================
--- Ownx.io — Supabase SQL Editor setup (CORRECTED)
+-- Ownx.io — Supabase SQL Editor setup (CORRECTED, through migration 008)
 --
 -- Run THIS ONE FILE in Supabase -> SQL Editor -> New query.
 -- It is designed to be safe to re-run after a partial/failed attempt.
@@ -8,14 +8,19 @@
 --   1. Creates public.listings before the assets policy that references it.
 --   2. Creates organization_members before the organization-owner policy that
 --      references it.
---   3. Includes all migrations in dependency order. Migration 002 is not
---      duplicated because its contents are already in the base schema.
+--   3. Includes all migrations in dependency order (002 through 008).
+--      Migration 002 is not duplicated because its contents are already in
+--      the base schema.
 --   4. Uses DROP POLICY IF EXISTS before policy recreation where needed.
--- ============================================================================
-
--- ============================================================================
--- Ownx.io database schema
--- Run this once in Supabase: Project -> SQL Editor -> New query -> paste -> Run
+--   5. (This revision) Previously stopped at migration 006 — a fresh install
+--      from that version left organizations.verified defaulting to `true`
+--      (self-serve fake "Verified" manufacturers/sellers/repair shops),
+--      documents' insert policy not checking asset_id ownership, and
+--      devices/lifecycle_events world-readable to any authenticated user.
+--      Migrations 007 and 008 are now folded in below to close those gaps,
+--      matching what app/actions/devices.ts and app/actions/organizations.ts
+--      already assume exists (the lookup_device_by_ownx_id /
+--      lookup_device_by_id RPCs, the verified-org gates, etc).
 -- ============================================================================
 
 -- Extension needed for gen_random_uuid()
@@ -168,6 +173,11 @@ create policy "Users can view their own documents"
   on public.documents for select
   using (auth.uid() = owner_id);
 
+-- NOTE: this insert policy is superseded further down by migration 008's
+-- version, which also checks asset_id ownership. Left here (matching the
+-- original schema.sql) only so early sections of this file stay internally
+-- consistent before 008 tightens it — the final, effective policy is the
+-- one created in the "Migration 008" section below.
 drop policy if exists "Users can insert their own documents" on public.documents;
 create policy "Users can insert their own documents"
   on public.documents for insert
@@ -201,6 +211,9 @@ create policy "Users can view their own service records"
   on public.service_records for select
   using (auth.uid() = owner_id);
 
+-- Superseded by migration 007's version below (adds the asset_id ownership
+-- check). Left here only for the same "internally consistent early on"
+-- reason as documents, above.
 drop policy if exists "Users can insert their own service records" on public.service_records;
 create policy "Users can insert their own service records"
   on public.service_records for insert
@@ -233,6 +246,7 @@ create policy "Users can view their own listings"
   on public.listings for select
   using (auth.uid() = owner_id);
 
+-- Superseded by migration 007's version below.
 drop policy if exists "Users can insert their own listings" on public.listings;
 create policy "Users can insert their own listings"
   on public.listings for insert
@@ -299,9 +313,6 @@ create policy "Users can delete their own files"
 
 -- ============================================================================
 -- Migration 002 — Ownership transfer, passport sharing, richer service history
--- (Folded into this file for fresh installs. If you already ran schema.sql
--- before this was added, run supabase/migrations/002_transfer_share_service_history.sql
--- instead — it's the same content, safe to run on its own.)
 -- ============================================================================
 
 alter table public.service_records
@@ -322,30 +333,26 @@ create index if not exists passport_shares_asset_id_idx on public.passport_share
 alter table public.passport_shares enable row level security;
 
 drop policy if exists "Users can view their own passport shares" on public.passport_shares;
-drop policy if exists "Users can view their own passport shares" on public.passport_shares;
 create policy "Users can view their own passport shares"
   on public.passport_shares for select
   using (auth.uid() = owner_id);
 
-drop policy if exists "Users can insert their own passport shares" on public.passport_shares;
+-- Superseded by migration 007's version below.
 drop policy if exists "Users can insert their own passport shares" on public.passport_shares;
 create policy "Users can insert their own passport shares"
   on public.passport_shares for insert
   with check (auth.uid() = owner_id);
 
 drop policy if exists "Users can update their own passport shares" on public.passport_shares;
-drop policy if exists "Users can update their own passport shares" on public.passport_shares;
 create policy "Users can update their own passport shares"
   on public.passport_shares for update
   using (auth.uid() = owner_id);
 
 drop policy if exists "Anyone can view active passport shares" on public.passport_shares;
-drop policy if exists "Anyone can view active passport shares" on public.passport_shares;
 create policy "Anyone can view active passport shares"
   on public.passport_shares for select
   using (status = 'active');
 
-drop policy if exists "Anyone can view assets behind an active share" on public.assets;
 drop policy if exists "Anyone can view assets behind an active share" on public.assets;
 create policy "Anyone can view assets behind an active share"
   on public.assets for select
@@ -356,7 +363,6 @@ create policy "Anyone can view assets behind an active share"
     )
   );
 
-drop policy if exists "Anyone can view service records behind an active share" on public.service_records;
 drop policy if exists "Anyone can view service records behind an active share" on public.service_records;
 create policy "Anyone can view service records behind an active share"
   on public.service_records for select
@@ -385,12 +391,10 @@ create index if not exists ownership_transfers_to_email_idx on public.ownership_
 alter table public.ownership_transfers enable row level security;
 
 drop policy if exists "Sender can view own transfers" on public.ownership_transfers;
-drop policy if exists "Sender can view own transfers" on public.ownership_transfers;
 create policy "Sender can view own transfers"
   on public.ownership_transfers for select
   using (auth.uid() = from_user_id);
 
-drop policy if exists "Recipient can view transfers addressed to them" on public.ownership_transfers;
 drop policy if exists "Recipient can view transfers addressed to them" on public.ownership_transfers;
 create policy "Recipient can view transfers addressed to them"
   on public.ownership_transfers for select
@@ -400,7 +404,6 @@ create policy "Recipient can view transfers addressed to them"
   );
 
 drop policy if exists "Sender can create a transfer for their own asset" on public.ownership_transfers;
-drop policy if exists "Sender can create a transfer for their own asset" on public.ownership_transfers;
 create policy "Sender can create a transfer for their own asset"
   on public.ownership_transfers for insert
   with check (
@@ -409,13 +412,11 @@ create policy "Sender can create a transfer for their own asset"
   );
 
 drop policy if exists "Sender can cancel own pending transfer" on public.ownership_transfers;
-drop policy if exists "Sender can cancel own pending transfer" on public.ownership_transfers;
 create policy "Sender can cancel own pending transfer"
   on public.ownership_transfers for update
   using (auth.uid() = from_user_id and status = 'pending')
   with check (auth.uid() = from_user_id and status = 'cancelled');
 
-drop policy if exists "Recipient can decline their pending transfer" on public.ownership_transfers;
 drop policy if exists "Recipient can decline their pending transfer" on public.ownership_transfers;
 create policy "Recipient can decline their pending transfer"
   on public.ownership_transfers for update
@@ -468,7 +469,6 @@ $$;
 grant execute on function public.accept_ownership_transfer(uuid) to authenticated;
 
 drop policy if exists "Recipient can view asset behind a pending transfer to them" on public.assets;
-drop policy if exists "Recipient can view asset behind a pending transfer to them" on public.assets;
 create policy "Recipient can view asset behind a pending transfer to them"
   on public.assets for select
   using (
@@ -480,16 +480,8 @@ create policy "Recipient can view asset behind a pending transfer to them"
     )
   );
 
-
--- ============================================================================
--- Migration 003 — AI diagnostics
--- ============================================================================
-
 -- ============================================================================
 -- Migration 003 — AI Diagnose
--- Stores every AI diagnostic run (survey answers + device-check output +
--- generated score/report) for an asset. Also folded into schema.sql for
--- fresh installs.
 -- ============================================================================
 
 create table if not exists public.ai_diagnoses (
@@ -499,10 +491,10 @@ create table if not exists public.ai_diagnoses (
 
   category text not null,
   survey_answers jsonb not null default '{}'::jsonb,
-  device_check jsonb, -- { os, command, output } when a battery/device check was run
+  device_check jsonb,
 
   ai_score integer not null check (ai_score between 0 and 100),
-  score_breakdown jsonb not null default '{}'::jsonb, -- { battery, performance, cosmetic, functionality }
+  score_breakdown jsonb not null default '{}'::jsonb,
   condition_summary text not null,
   key_findings jsonb not null default '[]'::jsonb,
 
@@ -531,6 +523,7 @@ create policy "Users can view their own diagnoses"
   on public.ai_diagnoses for select
   using (auth.uid() = owner_id);
 
+-- Superseded by migration 007's version below.
 drop policy if exists "Users can insert their own diagnoses" on public.ai_diagnoses;
 create policy "Users can insert their own diagnoses"
   on public.ai_diagnoses for insert
@@ -541,8 +534,6 @@ create policy "Users can delete their own diagnoses"
   on public.ai_diagnoses for delete
   using (auth.uid() = owner_id);
 
--- Same "readable behind an active share" pattern as service_records, so a
--- shared read-only passport can show the latest AI Score too.
 drop policy if exists "Anyone can view diagnoses behind an active share" on public.ai_diagnoses;
 create policy "Anyone can view diagnoses behind an active share"
   on public.ai_diagnoses for select
@@ -553,27 +544,15 @@ create policy "Anyone can view diagnoses behind an active share"
     )
   );
 
-
--- ============================================================================
--- Migration 004 — Device Passport Platform (dependency order corrected)
--- ============================================================================
-
 -- ============================================================================
 -- Migration 004 — Device Passport Platform
--- Adds organizations, devices (permanent Ownx IDs), an append-only lifecycle
--- ledger, and manufacturer/seller-initiated ownership transfers. Reuses the
--- existing assets/ownership_transfers/service_records tables wherever an
--- owner is already involved — this migration only adds what's genuinely new.
 -- ============================================================================
 
--- ----------------------------------------------------------------------------
--- ORGANIZATIONS — manufacturers, sellers/retailers, repair shops
--- ----------------------------------------------------------------------------
 create table if not exists public.organizations (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   org_type text not null check (org_type in ('manufacturer', 'seller', 'repair_shop', 'admin')),
-  verified boolean not null default true, -- auto-verified for this demo; production would gate on Ownx admin review
+  verified boolean not null default true, -- flipped to default false by migration 008 below
   created_at timestamptz not null default now()
 );
 
@@ -587,10 +566,6 @@ drop policy if exists "Authenticated can create organizations" on public.organiz
 create policy "Authenticated can create organizations"
   on public.organizations for insert to authenticated with check (true);
 
-
--- ----------------------------------------------------------------------------
--- ORGANIZATION MEMBERS
--- ----------------------------------------------------------------------------
 create table if not exists public.organization_members (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations (id) on delete cascade,
@@ -612,6 +587,7 @@ create policy "Users can join an organization as themselves"
   on public.organization_members for insert to authenticated
   with check (user_id = auth.uid());
 
+-- Superseded by migration 008's version below.
 drop policy if exists "Org owners can update their organization" on public.organizations;
 create policy "Org owners can update their organization"
   on public.organizations for update to authenticated
@@ -620,17 +596,10 @@ create policy "Org owners can update their organization"
     where m.organization_id = organizations.id and m.user_id = auth.uid() and m.role = 'owner'
   ));
 
--- ----------------------------------------------------------------------------
--- PROFILES — convenience field for dashboard routing (not a security boundary;
--- actual authorization always goes through organization_members).
--- ----------------------------------------------------------------------------
 alter table public.profiles
   add column if not exists platform_role text not null default 'owner'
   check (platform_role in ('owner', 'manufacturer', 'seller', 'repair_shop', 'admin'));
 
--- ----------------------------------------------------------------------------
--- DEVICES — the permanent, manufacturer-issued passport record
--- ----------------------------------------------------------------------------
 create table if not exists public.devices (
   id uuid primary key default gen_random_uuid(),
   ownx_id text not null unique,
@@ -667,10 +636,14 @@ create trigger devices_set_updated_at
 
 alter table public.devices enable row level security;
 
+-- NOTE: superseded by migration 008's scoped version below — that migration
+-- drops this "using (true)" policy and replaces it. It's created here first
+-- only so the table is usable at every intermediate step of this file.
 drop policy if exists "Authenticated can view devices" on public.devices;
 create policy "Authenticated can view devices"
   on public.devices for select to authenticated using (true);
 
+-- Superseded by migration 008's version below (adds org.verified check).
 drop policy if exists "Manufacturers can register devices" on public.devices;
 create policy "Manufacturers can register devices"
   on public.devices for insert to authenticated
@@ -693,10 +666,6 @@ create policy "Manufacturers can update their own devices"
     )
   );
 
--- ----------------------------------------------------------------------------
--- LIFECYCLE EVENTS — append-only audit trail. No update/delete policy exists
--- on purpose: history can never be silently rewritten.
--- ----------------------------------------------------------------------------
 create table if not exists public.lifecycle_events (
   id uuid primary key default gen_random_uuid(),
   device_id uuid not null references public.devices (id) on delete cascade,
@@ -717,18 +686,18 @@ create index if not exists lifecycle_events_device_id_idx on public.lifecycle_ev
 
 alter table public.lifecycle_events enable row level security;
 
+-- NOTE: superseded by migration 008's scoped version below.
 drop policy if exists "Authenticated can view lifecycle events" on public.lifecycle_events;
 create policy "Authenticated can view lifecycle events"
   on public.lifecycle_events for select to authenticated using (true);
 
+-- Superseded by migration 008's version below (adds org.verified check).
 drop policy if exists "Authorized actors can add lifecycle events" on public.lifecycle_events;
 create policy "Authorized actors can add lifecycle events"
   on public.lifecycle_events for insert to authenticated
   with check (
-    -- an owner may add their own low-trust "reported" notes about their device
     (actor_user_id = auth.uid() and status = 'reported')
     or
-    -- a manufacturer/seller/repair_shop staff member acting through their org
     exists (
       select 1 from public.organization_members m
       join public.organizations o on o.id = m.organization_id
@@ -743,11 +712,6 @@ create policy "Authorized actors can add lifecycle events"
     )
   );
 
--- ----------------------------------------------------------------------------
--- DEVICE TRANSFERS — manufacturer/seller-network sale of a registered device
--- to its first (or next) buyer. Owner-to-owner resale keeps using the
--- existing ownership_transfers table further down.
--- ----------------------------------------------------------------------------
 create table if not exists public.device_transfers (
   id uuid primary key default gen_random_uuid(),
   device_id uuid not null references public.devices (id) on delete cascade,
@@ -776,6 +740,8 @@ create policy "View device transfers I'm party to"
     or exists (select 1 from public.organization_members m where m.user_id = auth.uid() and m.organization_id = from_org_id)
   );
 
+-- Superseded by migration 008's version below (adds org.verified + device
+-- status = 'registered' checks).
 drop policy if exists "Sellers can record a sale" on public.device_transfers;
 create policy "Sellers can record a sale"
   on public.device_transfers for insert to authenticated
@@ -796,9 +762,6 @@ create policy "Sellers can cancel their pending sale"
   )
   with check (status = 'cancelled');
 
--- The only path that assigns a device's first/next owner and links (or
--- reassigns) the linked `assets` row. Runs as security definer, does its own
--- authorization check against the transfer's to_email.
 create or replace function public.accept_device_transfer(p_transfer_id uuid)
 returns void
 language plpgsql
@@ -869,12 +832,6 @@ $$;
 
 grant execute on function public.accept_device_transfer(uuid) to authenticated;
 
--- ----------------------------------------------------------------------------
--- Sync existing owner-to-owner resale into the device ledger too, so a
--- device that's already been claimed keeps its lifecycle in sync when the
--- OWNER (not a seller) transfers it again — no new UI needed for this path,
--- it's the same "Transfer to someone" button already on the passport page.
--- ----------------------------------------------------------------------------
 create or replace function public.accept_ownership_transfer(p_transfer_id uuid)
 returns void
 language plpgsql
@@ -916,7 +873,6 @@ begin
     set status = 'revoked'
     where asset_id = v_transfer.asset_id and status = 'active';
 
-  -- NEW: keep a linked device's canonical record in sync + log it in the ledger
   update public.devices set current_owner_id = auth.uid() where asset_id = v_transfer.asset_id;
 
   insert into public.lifecycle_events (device_id, event_type, status, actor_user_id, title, detail)
@@ -926,17 +882,8 @@ begin
 end;
 $$;
 
-
 -- ============================================================================
--- Migration 005 — Blog
--- ============================================================================
-
--- ============================================================================
--- Migration 005 — Public blog (buying guides, maintenance tips, etc.)
--- Readable by anyone, no login required. Writable only by accounts with
--- profiles.platform_role = 'admin' (that enum value already exists from
--- migration 004 — no one has it set yet, so grant it manually:
---   update public.profiles set platform_role = 'admin' where id = '<uuid>';
+-- Migration 005 — Public blog
 -- ============================================================================
 
 create table if not exists public.blog_posts (
@@ -947,7 +894,7 @@ create table if not exists public.blog_posts (
   title text not null,
   excerpt text,
   cover_image_url text,
-  content text not null, -- plain text / simple markdown, rendered as paragraphs — see app/blog/[slug]/page.tsx
+  content text not null,
   category text not null default 'guide' check (category in ('guide', 'maintenance', 'sustainability', 'news')),
 
   status text not null default 'draft' check (status in ('draft', 'published')),
@@ -992,33 +939,14 @@ create policy "Admins can delete posts"
   on public.blog_posts for delete to authenticated
   using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.platform_role = 'admin'));
 
-
 -- ============================================================================
 -- Migration 006 — Verification channel
--- ============================================================================
-
--- ============================================================================
--- Migration 006 — Authentic "Verified" status
---
--- Verified now means: this specific device was signed into existence by a
--- real manufacturer, AND its ownership has never left the org-verified
--- network (manufacturer → seller-mediated sale → buyer). The moment it
--- changes hands through a plain owner-to-owner transfer (the existing
--- "Transfer to someone" flow, which anyone can send to any email with zero
--- verification), it downgrades — it's still the same real device, but Ownx
--- can no longer vouch for who currently holds it, only who used to.
---
--- Three states, computed from `devices.last_transfer_channel`:
---   'manufacturer' | 'seller'  -> Verified
---   'owner_resale'             -> Formerly Verified (ownership changed privately)
---   no linked devices row      -> Unverified (self-reported asset)
 -- ============================================================================
 
 alter table public.devices
   add column if not exists last_transfer_channel text not null default 'manufacturer'
   check (last_transfer_channel in ('manufacturer', 'seller', 'owner_resale'));
 
--- Seller-mediated sale (the actual verified handoff path) keeps it Verified.
 create or replace function public.accept_device_transfer(p_transfer_id uuid)
 returns void
 language plpgsql
@@ -1089,9 +1017,6 @@ $$;
 
 grant execute on function public.accept_device_transfer(uuid) to authenticated;
 
--- Owner-to-owner transfer (the plain "Transfer to someone" flow — nothing
--- stops anyone from typing in any email here) drops any linked device to
--- 'owner_resale', i.e. Formerly Verified going forward.
 create or replace function public.accept_ownership_transfer(p_transfer_id uuid)
 returns void
 language plpgsql
@@ -1144,6 +1069,295 @@ begin
 end;
 $$;
 
+-- ============================================================================
+-- Migration 007 — Close RLS insert gaps
+--
+-- service_records, ai_diagnoses, listings, and passport_shares all had an
+-- insert policy that checked `auth.uid() = owner_id` but never verified the
+-- referenced asset_id actually belongs to that user. Fixed below: every
+-- insert policy on a table that references assets.id now also confirms the
+-- caller owns that asset, not just that they own the new row.
+-- ============================================================================
+
+drop policy if exists "Users can insert their own service records" on public.service_records;
+create policy "Users can insert their own service records"
+  on public.service_records for insert
+  with check (
+    auth.uid() = owner_id
+    and exists (
+      select 1 from public.assets a
+      where a.id = service_records.asset_id and a.owner_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Users can insert their own diagnoses" on public.ai_diagnoses;
+create policy "Users can insert their own diagnoses"
+  on public.ai_diagnoses for insert
+  with check (
+    auth.uid() = owner_id
+    and exists (
+      select 1 from public.assets a
+      where a.id = ai_diagnoses.asset_id and a.owner_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Users can insert their own listings" on public.listings;
+create policy "Users can insert their own listings"
+  on public.listings for insert
+  with check (
+    auth.uid() = owner_id
+    and exists (
+      select 1 from public.assets a
+      where a.id = listings.asset_id and a.owner_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Users can insert their own passport shares" on public.passport_shares;
+create policy "Users can insert their own passport shares"
+  on public.passport_shares for insert
+  with check (
+    auth.uid() = owner_id
+    and exists (
+      select 1 from public.assets a
+      where a.id = passport_shares.asset_id and a.owner_id = auth.uid()
+    )
+  );
+
+-- ============================================================================
+-- Migration 008 — Security hardening
+--
+-- 1. documents insert policy gets the same asset_id-ownership check as 007.
+-- 2. organizations.verified now defaults to false; only an admin
+--    (profiles.platform_role = 'admin') can flip it to true. Existing orgs
+--    are grandfathered as verified below — delete that UPDATE if you'd
+--    rather re-review everyone from a clean slate.
+-- 3. devices / lifecycle_events lose their "using (true)" blanket SELECT and
+--    get scoped policies instead. Two SECURITY DEFINER RPCs
+--    (lookup_device_by_ownx_id, lookup_device_by_id) restore the legitimate
+--    "verified seller/repair shop types in an exact Ownx ID" lookup flow
+--    without reopening bulk read access.
+-- ============================================================================
+
+-- 1. documents insert policy — verify asset_id ownership, not just owner_id
+drop policy if exists "Users can insert their own documents" on public.documents;
+create policy "Users can insert their own documents"
+  on public.documents for insert
+  with check (
+    auth.uid() = owner_id
+    and (
+      asset_id is null
+      or exists (
+        select 1 from public.assets a
+        where a.id = documents.asset_id and a.owner_id = auth.uid()
+      )
+    )
+  );
+
+-- 2. Organization verification gate
+alter table public.organizations alter column verified set default false;
+
+-- Grandfather existing orgs so nothing you've already tested breaks. Delete
+-- this line if you'd rather every org go through approval from a clean slate.
+update public.organizations set verified = true where verified is not true;
+
+drop policy if exists "Org owners can update their organization" on public.organizations;
+create policy "Org owners can update their organization"
+  on public.organizations for update to authenticated
+  using (
+    exists (
+      select 1 from public.organization_members m
+      where m.organization_id = organizations.id and m.user_id = auth.uid() and m.role = 'owner'
+    )
+  )
+  with check (
+    verified = (select o.verified from public.organizations o where o.id = organizations.id)
+    or exists (select 1 from public.profiles p where p.id = auth.uid() and p.platform_role = 'admin')
+  );
+
+drop policy if exists "Admins can approve organizations" on public.organizations;
+create policy "Admins can approve organizations"
+  on public.organizations for update to authenticated
+  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.platform_role = 'admin'));
+
+-- 3a. devices — replace blanket select with scoped access
+drop policy if exists "Authenticated can view devices" on public.devices;
+create policy "Owners and involved orgs can view devices"
+  on public.devices for select to authenticated
+  using (
+    current_owner_id = auth.uid()
+    or exists (
+      select 1 from public.organization_members m
+      where m.user_id = auth.uid() and m.organization_id = devices.manufacturer_org_id
+    )
+    or exists (
+      select 1 from public.lifecycle_events e
+      join public.organization_members m on m.organization_id = e.actor_org_id
+      where e.device_id = devices.id and m.user_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.device_transfers t
+      where t.device_id = devices.id
+        and (
+          t.to_user_id = auth.uid()
+          or lower(coalesce(auth.jwt() ->> 'email', '')) = lower(t.to_email)
+          or exists (select 1 from public.organization_members m where m.user_id = auth.uid() and m.organization_id = t.from_org_id)
+        )
+    )
+  );
+
+drop policy if exists "Manufacturers can register devices" on public.devices;
+create policy "Manufacturers can register devices"
+  on public.devices for insert to authenticated
+  with check (
+    exists (
+      select 1 from public.organization_members m
+      join public.organizations o on o.id = m.organization_id
+      where m.user_id = auth.uid()
+        and m.organization_id = devices.manufacturer_org_id
+        and o.org_type = 'manufacturer'
+        and o.verified = true
+    )
+  );
+
+drop policy if exists "Manufacturers can update their own devices" on public.devices;
+create policy "Manufacturers can update their own devices"
+  on public.devices for update to authenticated
+  using (
+    exists (
+      select 1 from public.organization_members m
+      join public.organizations o on o.id = m.organization_id
+      where m.user_id = auth.uid() and m.organization_id = devices.manufacturer_org_id and o.org_type = 'manufacturer'
+    )
+  );
+
+create or replace function public.lookup_device_by_ownx_id(p_ownx_id text)
+returns public.devices
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_device public.devices;
+  v_authorized boolean;
+begin
+  select exists (
+    select 1 from public.organization_members m
+    join public.organizations o on o.id = m.organization_id
+    where m.user_id = auth.uid()
+      and o.org_type in ('seller', 'repair_shop')
+      and o.verified = true
+  ) into v_authorized;
+
+  if not v_authorized then
+    raise exception 'Only verified seller or repair shop staff can look up devices by Ownx ID';
+  end if;
+
+  select * into v_device from public.devices where ownx_id = upper(trim(p_ownx_id));
+  return v_device;
+end;
+$$;
+
+grant execute on function public.lookup_device_by_ownx_id(text) to authenticated;
+
+create or replace function public.lookup_device_by_id(p_device_id uuid)
+returns public.devices
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_device public.devices;
+  v_authorized boolean;
+begin
+  select exists (
+    select 1 from public.organization_members m
+    join public.organizations o on o.id = m.organization_id
+    where m.user_id = auth.uid()
+      and o.org_type in ('seller', 'repair_shop')
+      and o.verified = true
+  ) into v_authorized;
+
+  if not v_authorized then
+    raise exception 'Only verified seller or repair shop staff can look up devices';
+  end if;
+
+  select * into v_device from public.devices where id = p_device_id;
+  return v_device;
+end;
+$$;
+
+grant execute on function public.lookup_device_by_id(uuid) to authenticated;
+
+-- 3b. lifecycle_events — same problem, same fix shape
+drop policy if exists "Authenticated can view lifecycle events" on public.lifecycle_events;
+create policy "Owners and involved orgs can view lifecycle events"
+  on public.lifecycle_events for select to authenticated
+  using (
+    exists (
+      select 1 from public.devices d
+      where d.id = lifecycle_events.device_id and d.current_owner_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.organization_members m
+      join public.devices d on d.manufacturer_org_id = m.organization_id
+      where d.id = lifecycle_events.device_id and m.user_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.organization_members m
+      where m.organization_id = lifecycle_events.actor_org_id and m.user_id = auth.uid()
+    )
+    or actor_user_id = auth.uid()
+  );
+
+drop policy if exists "Authorized actors can add lifecycle events" on public.lifecycle_events;
+create policy "Authorized actors can add lifecycle events"
+  on public.lifecycle_events for insert to authenticated
+  with check (
+    (actor_user_id = auth.uid() and status = 'reported')
+    or exists (
+      select 1 from public.organization_members m
+      join public.organizations o on o.id = m.organization_id
+      where m.user_id = auth.uid()
+        and o.verified = true
+        and (
+          (o.org_type = 'manufacturer' and exists (
+            select 1 from public.devices d where d.id = lifecycle_events.device_id and d.manufacturer_org_id = m.organization_id
+          ))
+          or o.org_type = 'repair_shop'
+          or o.org_type = 'seller'
+        )
+    )
+  );
+
+-- 3c. Require verified orgs (and a still-registered device) for a new sale
+drop policy if exists "Sellers can record a sale" on public.device_transfers;
+create policy "Sellers can record a sale"
+  on public.device_transfers for insert to authenticated
+  with check (
+    exists (
+      select 1 from public.organization_members m
+      join public.organizations o on o.id = m.organization_id
+      where m.user_id = auth.uid()
+        and m.organization_id = device_transfers.from_org_id
+        and o.org_type = 'seller'
+        and o.verified = true
+    )
+    and exists (
+      select 1 from public.devices d
+      where d.id = device_transfers.device_id and d.status = 'registered'
+    )
+  );
+
+-- ============================================================================
+-- Post-setup: set your admin account
+--
+-- No UI writes profiles.platform_role = 'admin' — this is deliberately a
+-- manual, out-of-band step. Run once, substituting your own user id (find it
+-- in Supabase -> Authentication -> Users):
+--
+--   update public.profiles set platform_role = 'admin' where id = '<your-user-id>';
+--
+-- Without this, nobody can approve organizations via /admin/organizations or
+-- publish blog posts.
+-- ============================================================================
 
 -- ============================================================================
 -- END

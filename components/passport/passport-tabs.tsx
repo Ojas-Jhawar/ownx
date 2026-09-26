@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Pencil, FileText, Download, Plus, Trash2, Send, X, Share2, Check, ShieldOff, History, ShieldCheck } from "lucide-react"
+import { Pencil, FileText, Download, Plus, Trash2, Send, X, Share2, Check, ShieldOff, History, ShieldCheck, Store, ExternalLink } from "lucide-react"
 import { updateAsset } from "@/app/actions/assets"
 import { deleteServiceRecord } from "@/app/actions/service"
 import { addOwnerNote } from "@/app/actions/devices"
@@ -11,6 +11,7 @@ import { ServiceRecordForm } from "@/components/service/service-record-form"
 import { AiDiagnose } from "@/components/service/ai-diagnose"
 import { initiateTransfer, cancelTransfer } from "@/app/actions/transfers"
 import { revokePassportShare } from "@/app/actions/shares"
+import { withdrawListing } from "@/app/actions/listings"
 import { formatINR, formatDate } from "@/lib/format"
 import type { Asset, ServiceRecord, OwnershipTransfer } from "@/lib/types"
 
@@ -19,6 +20,7 @@ const BASE_TABS = ["Overview", "Documents", "Service", "Ownership", "Share"] as 
 type DocRow = { id: string; file_name: string | null; kind: string; url: string | null; created_at: string }
 type ChainLink = { id: string; fromName: string; toName: string; resolvedAt: string | null }
 type ShareInfo = { id: string; slug: string; url: string }
+type ListingInfo = { id: string; slug: string; askingPrice: number | null; url: string }
 type DeviceInfo = { id: string; ownx_id: string; status: string; warranty_months: number | null; organizations?: { name: string } | null } | null
 
 export function PassportTabs({
@@ -29,6 +31,7 @@ export function PassportTabs({
   pendingTransfer,
   ownershipChain,
   passportShare,
+  listing,
   device,
   timeline,
 }: {
@@ -39,6 +42,7 @@ export function PassportTabs({
   pendingTransfer: OwnershipTransfer | null
   ownershipChain: ChainLink[]
   passportShare: ShareInfo | null
+  listing?: ListingInfo | null
   device?: DeviceInfo
   timeline?: any[]
 }) {
@@ -70,7 +74,7 @@ export function PassportTabs({
         {tab === "Ownership" && (
           <OwnershipTab asset={asset} ownerName={ownerName} pendingTransfer={pendingTransfer} chain={ownershipChain} />
         )}
-        {tab === "Share" && <ShareTab asset={asset} share={passportShare} />}
+        {tab === "Share" && <ShareTab asset={asset} share={passportShare} listing={listing || null} />}
         {tab === "Timeline" && device && <TimelineTab device={device} timeline={timeline || []} />}
       </div>
     </div>
@@ -427,55 +431,111 @@ function OwnershipTab({
   )
 }
 
-function ShareTab({ asset, share }: { asset: Asset; share: ShareInfo | null }) {
+function ShareTab({ asset, share, listing }: { asset: Asset; share: ShareInfo | null; listing: ListingInfo | null }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [copied, setCopied] = useState(false)
+  const [listingCopied, setListingCopied] = useState(false)
+  const [withdrawing, startWithdraw] = useTransition()
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-6">
-      <div className="flex items-center gap-2">
-        <Share2 className="size-4 text-brand" />
-        <h2 className="font-semibold text-ink">Share this passport</h2>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        A read-only link — anyone who opens it sees verified details and service history, but nothing private like
-        your invoices. Not a for-sale listing.
-      </p>
-
-      {share ? (
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3">
-            <span className="min-w-0 flex-1 truncate text-sm text-ink">{share.url}</span>
-            <button
-              onClick={async () => {
-                await navigator.clipboard.writeText(share.url)
-                setCopied(true)
-                setTimeout(() => setCopied(false), 2000)
-              }}
-              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground"
-            >
-              {copied ? <Check className="size-3.5" /> : <Share2 className="size-3.5" />} {copied ? "Copied" : "Copy"}
-            </button>
+    <div className="space-y-4">
+      {/* Previously: a listing created via /resale/[id] had no control surface
+          anywhere in the app once live — withdrawListing() existed as a
+          server action but nothing called it. This card is that control. */}
+      {listing && (
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <div className="flex items-center gap-2">
+            <Store className="size-4 text-brand" />
+            <h2 className="font-semibold text-ink">Active marketplace listing</h2>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This passport is currently listed for resale at{" "}
+            <span className="font-medium text-ink">{formatINR(listing.askingPrice)}</span>.
+          </p>
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3">
+            <span className="min-w-0 flex-1 truncate text-sm text-ink">{listing.url}</span>
+            <div className="flex shrink-0 gap-2">
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(listing.url)
+                  setListingCopied(true)
+                  setTimeout(() => setListingCopied(false), 2000)
+                }}
+                className="inline-flex items-center gap-1 rounded-full bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground"
+              >
+                {listingCopied ? <Check className="size-3.5" /> : <Share2 className="size-3.5" />}{" "}
+                {listingCopied ? "Copied" : "Copy"}
+              </button>
+              <a
+                href={listing.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-ink hover:bg-muted"
+              >
+                <ExternalLink className="size-3.5" /> View
+              </a>
+            </div>
           </div>
           <button
             onClick={() =>
-              startTransition(async () => {
-                await revokePassportShare(share.id, asset.id)
+              startWithdraw(async () => {
+                await withdrawListing(listing.id, asset.id)
                 router.refresh()
               })
             }
-            disabled={pending}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-xs font-medium text-ink hover:bg-muted disabled:opacity-60"
+            disabled={withdrawing}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-xs font-medium text-ink hover:bg-muted disabled:opacity-60"
           >
-            <ShieldOff className="size-3.5" /> {pending ? "Revoking…" : "Revoke link"}
+            <ShieldOff className="size-3.5" /> {withdrawing ? "Withdrawing…" : "Withdraw listing"}
           </button>
         </div>
-      ) : (
-        <p className="mt-4 text-sm text-muted-foreground">
-          Use the <span className="font-medium text-ink">Share Passport</span> button above to create your link.
-        </p>
       )}
+
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="flex items-center gap-2">
+          <Share2 className="size-4 text-brand" />
+          <h2 className="font-semibold text-ink">Share this passport</h2>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          A read-only link — anyone who opens it sees verified details and service history, but nothing private like
+          your invoices. Not a for-sale listing.
+        </p>
+
+        {share ? (
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3">
+              <span className="min-w-0 flex-1 truncate text-sm text-ink">{share.url}</span>
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(share.url)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                }}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground"
+              >
+                {copied ? <Check className="size-3.5" /> : <Share2 className="size-3.5" />} {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <button
+              onClick={() =>
+                startTransition(async () => {
+                  await revokePassportShare(share.id, asset.id)
+                  router.refresh()
+                })
+              }
+              disabled={pending}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-xs font-medium text-ink hover:bg-muted disabled:opacity-60"
+            >
+              <ShieldOff className="size-3.5" /> {pending ? "Revoking…" : "Revoke link"}
+            </button>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Use the <span className="font-medium text-ink">Share Passport</span> button above to create your link.
+          </p>
+        )}
+      </div>
     </div>
   )
 }

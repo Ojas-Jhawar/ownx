@@ -10,15 +10,17 @@ const PROTECTED_PREFIXES = [
   "/onboarding",
   "/settings",
   "/transfers",
-  // Added: these business-dashboard routes each already self-redirect to
-  // /login when there's no session, but they were missing from this list,
-  // so edge-level protection silently didn't cover them. Keeping this list
-  // in sync matters more now that it's the *only* copy — see middleware.ts.
   "/organization",
   "/manufacturer",
   "/seller",
   "/repair",
   "/device",
+  // Added: /admin/organizations is a real, admin-only page now — it already
+  // redirects non-admins itself, but it was missing from this list, so edge-
+  // level protection silently didn't cover it (unauthenticated requests
+  // would hit the page's own supabase.auth.getUser() check instead of being
+  // redirected at the middleware layer like every other app route).
+  "/admin",
 ]
 // Note: /share/[slug] and /p/[slug] are deliberately NOT in this list — they
 // are the public, no-login read-only passport/listing pages.

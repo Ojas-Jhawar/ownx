@@ -22,7 +22,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     { data: assetRaw },
     { data: docsRaw },
     { data: recordsRaw },
-    { data: listing },
+    { data: listingRaw },
     { data: profile },
     { data: shareRaw },
     { data: pendingTransferRaw },
@@ -31,7 +31,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase.from("assets").select("*").eq("id", id).eq("owner_id", user.id).single(),
     supabase.from("documents").select("*").eq("asset_id", id).eq("owner_id", user.id).order("created_at", { ascending: false }),
     supabase.from("service_records").select("*").eq("asset_id", id).eq("owner_id", user.id).order("serviced_at", { ascending: false }),
-    supabase.from("listings").select("slug").eq("asset_id", id).eq("status", "active").maybeSingle(),
+    // Full row (not just slug) so the passport page can show/withdraw an
+    // active listing instead of it just silently existing with no control.
+    supabase.from("listings").select("id, slug, asking_price, status").eq("asset_id", id).eq("status", "active").maybeSingle(),
     supabase.from("profiles").select("full_name").eq("id", user.id).single(),
     supabase.from("passport_shares").select("*").eq("asset_id", id).eq("owner_id", user.id).eq("status", "active").maybeSingle(),
     supabase.from("ownership_transfers").select("*").eq("asset_id", id).eq("from_user_id", user.id).eq("status", "pending").maybeSingle(),
@@ -40,6 +42,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   if (!assetRaw) notFound()
   const asset = assetRaw as Asset
+  const listing = listingRaw as { id: string; slug: string; asking_price: number | null; status: string } | null
 
   const documents = await Promise.all(
     ((docsRaw as DocumentRow[]) || []).map(async (d) => {
@@ -48,7 +51,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     }),
   )
 
-    const { data: deviceRaw } = await supabase
+  const { data: deviceRaw } = await supabase
     .from("devices")
     .select("id, ownx_id, product_name, manufactured_at, warranty_months, status, organizations:manufacturer_org_id ( name )")
     .eq("asset_id", id)
@@ -62,7 +65,6 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         .order("created_at", { ascending: false })
     : { data: [] as any[] }
 
-  // Resolve display names for everyone who has ever held this passport.
   const pastTransfers = (pastTransfersRaw as OwnershipTransfer[]) || []
   const chainUserIds = Array.from(new Set(pastTransfers.flatMap((t) => [t.from_user_id, t.to_user_id]).filter(Boolean))) as string[]
   const { data: chainProfiles } = chainUserIds.length
@@ -139,7 +141,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           </div>
 
           <div>
-                        <PassportTabs
+            <PassportTabs
               asset={asset}
               documents={documents}
               serviceRecords={(recordsRaw as ServiceRecord[]) || []}
@@ -152,25 +154,28 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 resolvedAt: t.resolved_at,
               }))}
               passportShare={shareRaw ? { id: shareRaw.id, slug: shareRaw.slug, url: passportShareUrl! } : null}
+              listing={listing ? { id: listing.id, slug: listing.slug, askingPrice: listing.asking_price, url: listingShareUrl! } : null}
               device={deviceRaw as any}
               timeline={(timelineRaw as any[]) || []}
             />
 
-            <div className="mt-4 rounded-2xl border border-border bg-card p-6">
-              <h2 className="font-semibold text-ink">Ready to sell?</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Turn this passport into a shareable, verified resale listing.
-              </p>
-              <Link
-                href={`/resale/${asset.id}`}
-                className="mt-4 inline-flex w-full items-center justify-between gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-medium text-brand-foreground"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Store className="size-4" /> Generate Resale Listing
-                </span>
-                <ArrowRight className="size-4" />
-              </Link>
-            </div>
+            {!listing && (
+              <div className="mt-4 rounded-2xl border border-border bg-card p-6">
+                <h2 className="font-semibold text-ink">Ready to sell?</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Turn this passport into a shareable, verified resale listing.
+                </p>
+                <Link
+                  href={`/resale/${asset.id}`}
+                  className="mt-4 inline-flex w-full items-center justify-between gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-medium text-brand-foreground"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Store className="size-4" /> Generate Resale Listing
+                  </span>
+                  <ArrowRight className="size-4" />
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>
