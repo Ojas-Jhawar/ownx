@@ -5,6 +5,8 @@ import { Package, ShieldCheck, Wrench, Wallet, Plus, ArrowRight } from "lucide-r
 import { AppShell } from "@/components/app/app-shell"
 import { createClient } from "@/lib/supabase/server"
 import { formatINR, warrantyRemaining } from "@/lib/format"
+import { getAssetVerificationMap } from "@/lib/verification"
+import { VerificationBadge } from "@/components/verification/verification-badge"
 import type { Asset } from "@/lib/types"
 
 export default async function Page({
@@ -27,6 +29,9 @@ export default async function Page({
 
   const assets = (assetsRaw || []) as Asset[]
   const servicedAssetIds = new Set((serviceRecords || []).map((r) => r.asset_id))
+
+  // 1. Batched lookup for asset verification map states
+  const verificationMap = await getAssetVerificationMap(supabase, assets.map((a) => a.id))
 
   const underWarranty = assets.filter((a) => warrantyRemaining(a.purchase_date, a.warranty_months).active)
   const neverServiced = assets.filter((a) => !servicedAssetIds.has(a.id))
@@ -108,9 +113,14 @@ export default async function Page({
                   <div className="p-4">
                     <h3 className="font-semibold text-ink">{a.product_name || "Untitled asset"}</h3>
                     <p className="mt-0.5 text-sm text-muted-foreground">{warranty.label}</p>
-                    <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-brand">
-                      <ShieldCheck className="size-3.5" /> Verified
-                    </p>
+                    
+                    {/* 2. Added dynamic verification badge and dropped unconditional pill */}
+                    <VerificationBadge 
+                      status={verificationMap.get(a.id) || "unverified"} 
+                      className="mt-1" 
+                      showTooltip={false} 
+                    />
+
                     <Link
                       href={`/passport/${a.id}`}
                       className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-border py-2 text-sm font-medium text-ink transition-colors hover:bg-muted"

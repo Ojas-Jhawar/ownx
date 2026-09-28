@@ -6,6 +6,19 @@ import { SiteFooter } from "@/components/site-footer"
 import { Pill } from "@/components/ui-kit"
 import { createClient } from "@/lib/supabase/server"
 import { formatINR } from "@/lib/format"
+import { getAssetVerificationMap } from "@/lib/verification"
+import { VerificationBadge } from "@/components/verification/verification-badge"
+
+interface ListingItem {
+  slug: string
+  asking_price: number
+  asset_id: string
+  assets: {
+    product_name: string
+    image_url: string | null
+    condition_score: number | null
+  } | null
+}
 
 const REASONS = [
   { icon: ShoppingCart, title: "Buyers", copy: "Know what you're buying." },
@@ -16,12 +29,18 @@ const REASONS = [
 export default async function Page() {
   const supabase = await createClient()
 
-  const { data: listings } = await supabase
+  const { data } = await supabase
     .from("listings")
     .select("slug, asking_price, asset_id, assets ( product_name, image_url, condition_score )")
     .eq("status", "active")
     .order("created_at", { ascending: false })
     .limit(12)
+
+  const listings = data as ListingItem[] | null
+
+  // Fetch the verification statuses mapped to each unique asset identifier
+  const assetIds = (listings || []).map((l) => l.asset_id)
+  const verificationMap = await getAssetVerificationMap(supabase, assetIds)
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -51,7 +70,7 @@ export default async function Page() {
             </div>
           ) : (
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {listings.map((l: any) => (
+              {listings.map((l) => (
                 <div key={l.slug} className="overflow-hidden rounded-2xl border border-border bg-card">
                   <div className="relative aspect-[4/3] bg-muted">
                     <Image
@@ -61,7 +80,10 @@ export default async function Page() {
                       className="object-contain p-6"
                     />
                     <span className="absolute left-3 top-3">
-                      <Pill>Verified</Pill>
+                      <VerificationBadge 
+                        status={verificationMap.get(l.asset_id) || "unverified"} 
+                        showTooltip={false} 
+                      />
                     </span>
                   </div>
                   <div className="p-5">
@@ -69,7 +91,9 @@ export default async function Page() {
                     <div className="mt-1 flex items-center justify-between">
                       <span className="text-lg font-semibold text-ink">{formatINR(l.asking_price)}</span>
                       <span className="text-sm text-brand">
-                        {l.assets?.condition_score !== null ? `${l.assets?.condition_score}/100` : "—"}
+                        {l.assets?.condition_score !== null && l.assets?.condition_score !== undefined
+                          ? `${l.assets.condition_score}/100`
+                          : "—"}
                       </span>
                     </div>
                     <Link
@@ -104,3 +128,4 @@ export default async function Page() {
     </div>
   )
 }
+

@@ -117,6 +117,11 @@ export async function confirmAsset(assetId: string, formData: FormData) {
       currency: String(formData.get("currency") || "INR"),
       warranty_months: warrantyMonths ? Number(warrantyMonths) : null,
       condition_score: conditionScore ? Number(conditionScore) : null,
+      // NEW: cover photo uploaded on the review step (see PhotoPicker in
+      // app/create/review/page.tsx). Empty string from the hidden input
+      // means "no photo chosen" — normalize that to null rather than
+      // storing "".
+      image_url: String(formData.get("image_url") || "").trim() || null,
       extraction_source: formData.get("extraction_source") === "ai" ? "ai" : "manual",
     })
     .eq("id", assetId)
@@ -146,6 +151,14 @@ export async function updateAsset(assetId: string, formData: FormData) {
       purchase_price: purchasePrice ? Number(purchasePrice) : null,
       warranty_months: warrantyMonths ? Number(warrantyMonths) : null,
       condition_score: conditionScore ? Number(conditionScore) : null,
+      // NEW: allow the photo to be replaced from the passport page's edit
+      // form too, not just at creation. If passport-tabs.tsx's edit form
+      // doesn't include an image_url field, formData.get() returns null and
+      // this coalesces to undefined via the ?? below — so it's a no-op
+      // there until that form is updated to include a PhotoPicker as well.
+      ...(formData.has("image_url")
+        ? { image_url: String(formData.get("image_url") || "").trim() || null }
+        : {}),
     })
     .eq("id", assetId)
     .eq("owner_id", user.id)

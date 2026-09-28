@@ -67,3 +67,18 @@ export async function signOut() {
   await supabase.auth.signOut()
   redirect("/login")
 }
+
+export async function requestPasswordReset(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  const email = String(formData.get("email") || "").trim().toLowerCase()
+  if (!email) return { error: "Enter your email address." }
+
+  const supabase = await createClient()
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || ""
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteUrl}/reset-password`,
+  })
+  if (error) return { error: error.message }
+
+  // Don't leak which emails have accounts — same message either way.
+  redirect(`/login?message=${encodeURIComponent("If an account exists for that email, a reset link is on its way.")}`)
+}

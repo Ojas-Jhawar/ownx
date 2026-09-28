@@ -84,6 +84,9 @@ function LoginContent() {
                   placeholder="Enter your password"
                   className="w-full rounded-xl border border-input bg-card px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-muted-foreground focus:border-brand focus:ring-2 focus:ring-brand/20"
                 />
+                <Link href="/forgot-password" className="text-xs font-medium text-brand hover:underline">
+                  Forgot password?
+                </Link>
               </div>
 
               {message && !loginState.error && <p className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-ink-soft">{message}</p>}

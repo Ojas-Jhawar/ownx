@@ -1,8 +1,8 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Camera, X } from "lucide-react"
 import { FlowShell } from "@/components/flow/flow-shell"
 import { createClient } from "@/lib/supabase/client"
 import { confirmAsset } from "@/app/actions/assets"
@@ -60,6 +60,113 @@ function LabeledInput({
   )
 }
 
+// Photo picker for the asset's cover image. Uploads to the public
+// "asset-photos" Storage bucket the moment a file is chosen (not on form
+// submit), then hands the resulting public URL to the parent through
+// onUploaded so the hidden `image_url` field can be populated before the
+// server action runs. Public bucket is intentional: this image also needs
+// to render on unauthenticated pages (/p/[slug], /share/[slug]).
+function PhotoPicker({
+  assetId,
+  initialUrl,
+  onUploaded,
+}: {
+  assetId: string
+  initialUrl: string | null
+  onUploaded: (url: string | null) => void
+}) {
+  const [preview, setPreview] = useState<string | null>(initialUrl)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(file: File) {
+    setError(null)
+    setUploading(true)
+    const localPreview = URL.createObjectURL(file)
+    setPreview(localPreview)
+
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("Session expired — please log in again.")
+
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
+      const path = `${user.id}/${assetId}/${Date.now()}-${safeName}`
+
+      const { error: uploadError } = await supabase.storage.from("asset-photos").upload(path, file, {
+        contentType: file.type,
+        upsert: true,
+      })
+      if (uploadError) throw uploadError
+
+      const { data } = supabase.storage.from("asset-photos").getPublicUrl(path)
+      onUploaded(data.publicUrl)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Photo upload failed. You can still save without one.")
+      setPreview(initialUrl)
+      onUploaded(initialUrl)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function clear() {
+    setPreview(null)
+    setError(null)
+    onUploaded(null)
+    if (inputRef.current) inputRef.current.value = ""
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <label className="text-xs font-medium text-muted-foreground">Photo (optional)</label>
+      <div className="mt-2 flex items-center gap-4">
+        {preview ? (
+          <div className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview}
+              alt="Asset preview"
+              className={cn("size-24 rounded-xl border border-border object-cover", uploading && "opacity-50")}
+            />
+            <button
+              type="button"
+              onClick={clear}
+              disabled={uploading}
+              className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-ink text-white shadow-sm disabled:opacity-60"
+              aria-label="Remove photo"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        ) : (
+          <label className="flex size-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-brand/50 hover:text-ink">
+            <Camera className="size-5" />
+            <span className="text-[10px] font-medium">Add photo</span>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) handleFile(f)
+              }}
+            />
+          </label>
+        )}
+        <div className="text-xs text-muted-foreground">
+          {uploading ? "Uploading…" : "JPG, PNG or WEBP. Shown on your passport and any listing you create."}
+        </div>
+      </div>
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
 export default function Page() {
   return (
     <Suspense fallback={null}>
@@ -77,6 +184,7 @@ function ReviewContent() {
   const [confidence, setConfidence] = useState<Confidence>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!assetId) {
@@ -96,6 +204,7 @@ function ReviewContent() {
         } else {
           setAsset(data as Asset)
           setConfidence((data.extraction_confidence as Confidence) || {})
+          setImageUrl((data as Asset).image_url)
         }
         setLoading(false)
       })
@@ -134,6 +243,9 @@ function ReviewContent() {
 
       <form action={boundConfirm} className="mt-6 space-y-5">
         <input type="hidden" name="extraction_source" value={mode} />
+        <input type="hidden" name="image_url" value={imageUrl || ""} />
+
+        <PhotoPicker assetId={assetId} initialUrl={asset.image_url} onUploaded={setImageUrl} />
 
         <div className="rounded-2xl border border-border bg-card p-5">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -196,7 +308,7 @@ function ReviewContent() {
         </div>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <a
+          
             href="/create/upload"
             className="rounded-full border border-border px-6 py-2.5 text-center text-sm font-medium text-ink transition-colors hover:bg-muted"
           >
