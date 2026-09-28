@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { Factory, Store, Wrench, ArrowRight, Building2, Clock } from "lucide-react"
+import { Factory, Store, Wrench, ArrowRight, Building2, Clock, ExternalLink } from "lucide-react"
 import { AppShell } from "@/components/app/app-shell"
 import { createClient } from "@/lib/supabase/server"
-import { createOrganization } from "@/app/actions/organizations"
 
 const ORG_TYPES = [
   { value: "manufacturer", label: "Manufacturer", icon: Factory, copy: "Register devices and issue permanent Ownx Passports.", href: "/manufacturer" },
@@ -11,8 +10,7 @@ const ORG_TYPES = [
   { value: "repair_shop", label: "Repair Shop", icon: Wrench, copy: "Look up any device and log verified repairs.", href: "/repair" },
 ] as const
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ created?: string }> }) {
-  const { created } = await searchParams
+export default async function Page() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -25,6 +23,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
     .eq("user_id", user.id)
 
   const myOrgs = (memberships as any[])?.map((m) => m.organizations).filter(Boolean) || []
+  const formUrl = process.env.NEXT_PUBLIC_ORG_FORM_URL
 
   return (
     <AppShell active="Business" userEmail={user.email}>
@@ -35,19 +34,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
             Manufacturers, sellers and repair shops all plug into the same Ownx Passport network.
           </p>
         </div>
-
-        {created && (
-          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
-            <Clock className="mt-0.5 size-4 shrink-0 text-amber-600" />
-            <div>
-              <p className="font-medium text-ink">Organization created — pending verification</p>
-              <p className="mt-0.5 text-muted-foreground">
-                An Ownx admin reviews every new business account before it can register devices, record sales, or
-                sign repairs. You can explore the dashboard now; those actions unlock once you&apos;re approved.
-              </p>
-            </div>
-          </div>
-        )}
 
         {myOrgs.length > 0 && (
           <div className="mt-6 space-y-3">
@@ -69,7 +55,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
                       {org.verified ? (
                         <span className="text-brand">Verified</span>
                       ) : (
-                        <span className="text-amber-600">Pending verification</span>
+                        <span className="text-amber-600">Suspended: contact Ownx support</span>
                       )}
                     </p>
                   </div>
@@ -80,43 +66,33 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ c
           </div>
         )}
 
-        <div className="mt-8 rounded-2xl border border-dashed border-border bg-card p-6">
-          <h2 className="font-semibold text-ink">Register a new organization</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            New organizations start <span className="font-medium text-ink">pending verification</span>. An Ownx
-            admin reviews and approves before you can register devices, record sales, or sign repairs — this is what
-            makes the &ldquo;Verified&rdquo; badge on a passport actually mean something.
-          </p>
-          <form action={createOrganization} className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
-            <input
-              name="name"
-              required
-              placeholder="Organization name, e.g. Acme Electronics"
-              className="rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-            />
-            <select
-              name="org_type"
-              required
-              defaultValue=""
-              className="rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm text-ink outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-            >
-              <option value="" disabled>
-                Choose type…
-              </option>
-              {ORG_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              className="rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-brand-foreground transition-transform hover:-translate-y-0.5 sm:col-span-2"
-            >
-              Create organization
-            </button>
-          </form>
-        </div>
+        {myOrgs.length === 0 && (
+          <div className="mt-6 rounded-2xl border border-dashed border-border bg-card p-6">
+            <div className="flex items-start gap-3">
+              <Clock className="mt-0.5 size-4 shrink-0 text-amber-600" />
+              <div>
+                <h2 className="font-semibold text-ink">Business accounts are approved by Ownx</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  To register as a manufacturer, seller or repair shop, submit the application form. Our team verifies
+                  your business, then creates your organisation and emails you an invite. This is what makes the
+                  &ldquo;Verified&rdquo; badge on a passport actually mean something.
+                </p>
+                {formUrl ? (
+                  
+                    href={formUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-brand-foreground transition-transform hover:-translate-y-0.5"
+                  >
+                    Apply for a business account <ExternalLink className="size-4" />
+                  </a>
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">Application form link is not configured yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {ORG_TYPES.map((t) => (

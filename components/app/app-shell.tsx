@@ -1,35 +1,87 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutGrid, ShieldCheck, Wrench, Store, Settings, Plus, ArrowRightLeft, Building2 } from "lucide-react"
+import {
+  LayoutGrid,
+  ShieldCheck,
+  Wrench,
+  Store,
+  Settings,
+  Plus,
+  ArrowRightLeft,
+  Building2,
+  UserCog,
+} from "lucide-react"
 import { Logo } from "@/components/logo"
 import { cn } from "@/lib/utils"
 import { initials } from "@/lib/format"
+import { createClient } from "@/lib/supabase/client"
 
-const NAV = [
+type NavItem = { label: string; href: string; icon: typeof LayoutGrid }
+
+const BASE_NAV: NavItem[] = [
   { label: "Overview", href: "/dashboard", icon: LayoutGrid },
   { label: "Warranty", href: "/dashboard?filter=warranty", icon: ShieldCheck },
   { label: "Service", href: "/service", icon: Wrench },
   { label: "Transfers", href: "/transfers", icon: ArrowRightLeft },
   { label: "Marketplace", href: "/marketplace", icon: Store },
-  { label: "Business", href: "/organization", icon: Building2 },
-  { label: "Settings", href: "/settings", icon: Settings },
-] as const
+]
+const BUSINESS_ITEM: NavItem = { label: "Business", href: "/organization", icon: Building2 }
+const ADMIN_ITEM: NavItem = { label: "Admin", href: "/admin/organizations", icon: UserCog }
+const SETTINGS_ITEM: NavItem = { label: "Settings", href: "/settings", icon: Settings }
 
 export function AppShell({
   children,
   active,
   userName,
   userEmail,
+  showBusiness: showBusinessProp,
+  isAdmin: isAdminProp,
 }: {
   children: ReactNode
   active?: string
   userName?: string
   userEmail?: string
+  /** Optional overrides; normally resolved automatically below. */
+  showBusiness?: boolean
+  isAdmin?: boolean
 }) {
   const pathname = usePathname()
+  const [hasOrg, setHasOrg] = useState(showBusinessProp ?? false)
+  const [isAdmin, setIsAdmin] = useState(isAdminProp ?? false)
+
+  // Both queries only ever return the caller's own rows (RLS), so this is
+  // purely a UI hint. The pages and the database still enforce access.
+  useEffect(() => {
+    if (showBusinessProp !== undefined && isAdminProp !== undefined) return
+    let cancelled = false
+    const supabase = createClient()
+    ;(async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user || cancelled) return
+      const [{ count }, { data: profile }] = await Promise.all([
+        supabase.from("organization_members").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+        supabase.from("profiles").select("platform_role").eq("id", user.id).single(),
+      ])
+      if (cancelled) return
+      setHasOrg((count ?? 0) > 0)
+      setIsAdmin(profile?.platform_role === "admin")
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [showBusinessProp, isAdminProp])
+
+  const NAV: NavItem[] = [
+    ...BASE_NAV,
+    ...(hasOrg || isAdmin ? [BUSINESS_ITEM] : []),
+    ...(isAdmin ? [ADMIN_ITEM] : []),
+    SETTINGS_ITEM,
+  ]
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -72,17 +124,19 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-border bg-card/80 px-5 py-3 backdrop-blur lg:hidden">
           <Logo href="/" />
-          <Link href="/create" className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-foreground">
+          <Link
+            href="/create"
+            className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-foreground"
+          >
             <Plus className="size-4" /> New
           </Link>
         </header>
 
         <main className="flex-1 p-5 pb-24 sm:p-8 lg:pb-8">{children}</main>
 
-        {/* Mobile bottom nav — the sidebar above is lg:flex only, so this is
-            the sole way to reach Warranty/Service/Marketplace/Settings on a
-            phone. Without it those sections would be unreachable on mobile. */}
-        <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-card/95 backdrop-blur lg:hidden">
+        {/* Mobile bottom nav: the sidebar is lg-only, so this is the only way
+            to reach these sections on a phone. Scrolls sideways if it overflows. */}
+        <nav className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto border-t border-border bg-card/95 backdrop-blur lg:hidden">
           {NAV.map((item) => {
             const isActive = active ? item.label === active : pathname === item.href
             return (
@@ -90,7 +144,7 @@ export function AppShell({
                 key={item.label}
                 href={item.href}
                 className={cn(
-                  "flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium",
+                  "flex min-w-16 flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium",
                   isActive ? "text-brand" : "text-muted-foreground",
                 )}
               >
