@@ -40,6 +40,14 @@ export async function initiateTransfer(assetId: string, formData: FormData) {
     .maybeSingle()
   if (pending) throw new Error("There's already a pending transfer for this passport — cancel it first.")
 
+  // FIX: this used to fire the `lifecycle_events` insert (using a
+  // `linkedDevice` lookup) BEFORE checking whether the `ownership_transfers`
+  // insert below had even succeeded — `error` was only checked several
+  // lines later. That meant a failed transfer could still log a lifecycle
+  // event claiming a transfer was initiated, and a successful transfer's
+  // real error (if any) was silently ignored until after other work had
+  // already run. Insert the transfer first, check its error immediately,
+  // and only then do the (non-critical) lifecycle logging.
   const { error } = await supabase.from("ownership_transfers").insert({
     asset_id: assetId,
     from_user_id: user.id,
@@ -47,9 +55,11 @@ export async function initiateTransfer(assetId: string, formData: FormData) {
     note: note || null,
     status: "pending",
   })
-    const { data: linkedDevice } = await supabase.from("devices").select("id").eq("asset_id", assetId).maybeSingle()
+  if (error) throw new Error(error.message)
+
+  const { data: linkedDevice } = await supabase.from("devices").select("id").eq("asset_id", assetId).maybeSingle()
   if (linkedDevice) {
-    await supabase.from("lifecycle_events").insert({
+    const { error: lifecycleError } = await supabase.from("lifecycle_events").insert({
       device_id: linkedDevice.id,
       event_type: "ownership_transfer_initiated",
       status: "documented",
@@ -57,9 +67,13 @@ export async function initiateTransfer(assetId: string, formData: FormData) {
       title: "Ownership transfer initiated",
       detail: `Owner started a transfer to ${toEmail}.`,
     })
+    if (lifecycleError) {
+      // Non-fatal: the transfer itself already succeeded and is the source
+      // of truth for what happens next. Missing a timeline note shouldn't
+      // block the person from sending their passport.
+      console.error("Failed to log ownership_transfer_initiated lifecycle event:", lifecycleError.message)
+    }
   }
-  
-  if (error) throw new Error(error.message)
 
   revalidatePath(`/passport/${assetId}`)
   revalidatePath("/transfers")

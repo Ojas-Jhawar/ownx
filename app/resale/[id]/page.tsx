@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server"
 import { createListing } from "@/app/actions/listings"
 import { formatINR } from "@/lib/format"
 import { warrantyRemaining } from "@/lib/format"
+import { getAssetVerification } from "@/lib/verification"
+import { VerificationBadge } from "@/components/verification/verification-badge"
 import type { Asset } from "@/lib/types"
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -16,25 +18,44 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const [{ data: assetRaw }, { data: docs }, { data: existingListing }, { data: profile }] = await Promise.all([
-    supabase.from("assets").select("*").eq("id", id).eq("owner_id", user.id).single(),
-    supabase.from("documents").select("id").eq("asset_id", id).eq("owner_id", user.id),
-    supabase.from("listings").select("slug").eq("asset_id", id).eq("status", "active").maybeSingle(),
-    supabase.from("profiles").select("full_name").eq("id", user.id).single(),
-  ])
+  const [{ data: assetRaw }, { data: docs }, { data: existingListing }, { data: profile }, { count: acceptedTransferCount }] =
+    await Promise.all([
+      supabase.from("assets").select("*").eq("id", id).eq("owner_id", user.id).single(),
+      supabase.from("documents").select("id").eq("asset_id", id).eq("owner_id", user.id),
+      supabase.from("listings").select("slug").eq("asset_id", id).eq("status", "active").maybeSingle(),
+      supabase.from("profiles").select("full_name").eq("id", user.id).single(),
+      // FIX: "1 owner (this account)" used to be hardcoded `met: true` no
+      // matter what — every listing claimed to be first-owner even after a
+      // real ownership transfer. Count accepted transfers for this asset
+      // and derive the real owner count (same approach already used on the
+      // public /share/[slug] page), instead of asserting a number nobody
+      // checked.
+      supabase
+        .from("ownership_transfers")
+        .select("id", { count: "exact", head: true })
+        .eq("asset_id", id)
+        .eq("status", "accepted"),
+    ])
 
   if (!assetRaw) notFound()
   const asset = assetRaw as Asset
   const warranty = warrantyRemaining(asset.purchase_date, asset.warranty_months)
+  const ownerCount = (acceptedTransferCount || 0) + 1
 
   if (existingListing) redirect(`/p/${existingListing.slug}`)
+
+  // Real manufacturer/seller-network verification status — see
+  // lib/verification.ts. Shown alongside the checklist below rather than
+  // implied by it, since "invoice on file" etc. are self-reported facts and
+  // shouldn't be conflated with an org-backed verification.
+  const verification = await getAssetVerification(supabase, id)
 
   const provenance = [
     { label: "Invoice on file", met: (docs?.length || 0) > 0 },
     { label: "Serial number verified", met: !!asset.serial_number },
     { label: "Warranty active", met: warranty.active },
     { label: "Condition assessed", met: asset.condition_score !== null },
-    { label: "1 owner (this account)", met: true },
+    { label: `${ownerCount} owner${ownerCount === 1 ? "" : "s"} on record`, met: true },
   ]
 
   const boundCreate = createListing.bind(null, asset.id)
@@ -61,7 +82,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               />
             </div>
             <div>
-              <p className="font-semibold text-ink">{asset.product_name || "Untitled asset"}</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-semibold text-ink">{asset.product_name || "Untitled asset"}</p>
+                <VerificationBadge status={verification} className="shrink-0" />
+              </div>
               <p className="mt-1 text-2xl font-semibold text-ink">{formatINR(asset.purchase_price)}</p>
               <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
                 <span className="font-medium text-brand">

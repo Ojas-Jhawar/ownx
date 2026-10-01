@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { AlertCircle, Camera, X } from "lucide-react"
 import { FlowShell } from "@/components/flow/flow-shell"
@@ -308,12 +309,17 @@ function ReviewContent() {
         </div>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-          
+          {/* FIX: this was missing its opening `<a` tag entirely (only the
+              attributes and children were present), which does not compile —
+              `href`/`className` as bare JSX expressions followed by a
+              dangling `</a>` is a syntax error. Using next/link since this is
+              an internal route. */}
+          <Link
             href="/create/upload"
             className="rounded-full border border-border px-6 py-2.5 text-center text-sm font-medium text-ink transition-colors hover:bg-muted"
           >
             Start Over
-          </a>
+          </Link>
           <button
             type="submit"
             className="rounded-full bg-brand px-6 py-2.5 text-center text-sm font-medium text-brand-foreground transition-transform hover:-translate-y-0.5"

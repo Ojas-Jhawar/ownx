@@ -7,6 +7,15 @@ import { FlowShell } from "@/components/flow/flow-shell"
 import { createClient } from "@/lib/supabase/client"
 import { createDraftAsset } from "@/app/actions/assets"
 
+// FIX: there was no size check anywhere on the client before a file was
+// handed to Storage upload + the AI extraction pipeline — someone could
+// pick an arbitrarily large file, wait through a slow upload, and only then
+// discover (or not, previously) that the server was going to reject it.
+// This mirrors the real, authoritative 15 MB cap enforced server-side in
+// app/actions/assets.ts, just surfaced earlier so the person isn't left
+// waiting on a doomed upload.
+const MAX_FILE_BYTES = 15 * 1024 * 1024
+
 export default function Page() {
   return (
     <Suspense fallback={null}>
@@ -27,7 +36,14 @@ function UploadContent() {
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
-    if (f) setFile(f)
+    if (!f) return
+    if (f.size > MAX_FILE_BYTES) {
+      setError("That file is larger than 15 MB. Please choose a smaller file.")
+      if (inputRef.current) inputRef.current.value = ""
+      return
+    }
+    setError(null)
+    setFile(f)
   }
 
   async function startExtraction() {
@@ -101,7 +117,7 @@ function UploadContent() {
           <span className="rounded-full bg-brand px-5 py-2 text-sm font-medium text-brand-foreground">
             {capture ? "Open camera" : "Browse files"}
           </span>
-          <p className="mt-3 text-xs text-muted-foreground">PDF, JPG or PNG</p>
+          <p className="mt-3 text-xs text-muted-foreground">PDF, JPG or PNG · up to 15 MB</p>
           <input
             ref={inputRef}
             type="file"

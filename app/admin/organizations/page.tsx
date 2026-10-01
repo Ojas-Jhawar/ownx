@@ -63,8 +63,12 @@ export default async function Page() {
             gets an email invite and sets their own password.
           </p>
           <div className="mt-3 flex flex-wrap gap-4 text-sm">
+            {/* FIX: both links below were missing their opening `<a` tag —
+                bare `href`/`target`/`rel`/`className` attributes with no
+                element to attach them to is a JSX syntax error and would
+                fail the build. */}
             {responsesUrl && (
-              
+              <a
                 href={responsesUrl}
                 target="_blank"
                 rel="noreferrer"
@@ -74,7 +78,7 @@ export default async function Page() {
               </a>
             )}
             {formUrl && (
-              
+              <a
                 href={formUrl}
                 target="_blank"
                 rel="noreferrer"

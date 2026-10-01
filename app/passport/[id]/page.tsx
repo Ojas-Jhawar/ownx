@@ -2,12 +2,13 @@ import Image from "next/image"
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import QRCode from "qrcode"
-import { ShieldCheck, Store, ArrowRight } from "lucide-react"
+import { Store, ArrowRight, ShieldCheck } from "lucide-react"
 import { AppShell } from "@/components/app/app-shell"
-import { Pill } from "@/components/ui-kit"
 import { PassportTabs } from "@/components/passport/passport-tabs"
 import { PassportShareButton } from "@/components/passport/share-button"
 import { createClient } from "@/lib/supabase/server"
+import { getAssetVerification } from "@/lib/verification"
+import { VerificationBadge } from "@/components/verification/verification-badge"
 import type { Asset, DocumentRow, ServiceRecord, OwnershipTransfer } from "@/lib/types"
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -81,21 +82,28 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   const ownerName = profile?.full_name || user.email || "You"
 
+  // FIX: this page previously rendered a hardcoded, unconditional
+  // "Verified" pill next to every asset's title regardless of whether
+  // anything had actually been verified — the exact false-trust-claim
+  // problem flagged in review. Every other page in this codebase
+  // (dashboard, marketplace, /p/[slug], /share/[slug]) already computes the
+  // real status via lib/verification.ts; this page is now brought in line
+  // with them instead of being the one place still lying about it.
+  const verification = await getAssetVerification(supabase, id)
+
   return (
     <AppShell active="Overview" userName={profile?.full_name || undefined} userEmail={user.email}>
       <div className="mx-auto max-w-4xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold tracking-tight text-ink">{asset.product_name || "Untitled asset"}</h1>
-            <Pill>
-              <ShieldCheck className="size-3.5" /> Verified
-            </Pill>
+            <VerificationBadge status={verification} />
           </div>
 	  <div className="flex gap-2">
             {deviceRaw && (
-              <Pill tone="neutral">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
                 <span className="font-mono">{(deviceRaw as any).ownx_id}</span>
-              </Pill>
+              </span>
             )}
             <PassportShareButton assetId={asset.id} existingUrl={passportShareUrl} siteUrl={siteUrl} />
           </div>

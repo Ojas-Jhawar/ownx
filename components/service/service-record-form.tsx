@@ -5,6 +5,9 @@ import { Plus, Paperclip, X } from "lucide-react"
 import { addServiceRecord } from "@/app/actions/service"
 import { createClient } from "@/lib/supabase/client"
 
+// See app/create/upload/page.tsx for the matching cap on invoice uploads.
+const MAX_FILE_BYTES = 15 * 1024 * 1024
+
 export function ServiceRecordForm({
   assets,
   fixedAssetId,
@@ -31,6 +34,21 @@ export function ServiceRecordForm({
         <Plus className="size-4" /> Log a service record
       </button>
     )
+  }
+
+  // FIX: previously `onChange={(e) => setFile(e.target.files?.[0] || null)}`
+  // with no size check at all — a huge receipt photo would upload fine and
+  // only ever be caught (if at all) once it hit Storage/backend limits,
+  // with no clear error message for the person.
+  function onReceiptChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] || null
+    if (f && f.size > MAX_FILE_BYTES) {
+      setError("That file is larger than 15 MB. Please choose a smaller file.")
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      return
+    }
+    setError(null)
+    setFile(f)
   }
 
   async function handleSubmit(fd: FormData) {
@@ -161,7 +179,7 @@ export function ServiceRecordForm({
       </div>
 
       <div className="mt-3">
-        <label className="text-xs font-medium text-muted-foreground">Receipt (optional)</label>
+        <label className="text-xs font-medium text-muted-foreground">Receipt (optional, up to 15 MB)</label>
         {file ? (
           <div className="mt-1 flex items-center gap-2 rounded-lg border border-input bg-background px-3 py-2">
             <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
@@ -187,7 +205,7 @@ export function ServiceRecordForm({
               type="file"
               accept=".pdf,.jpg,.jpeg,.png,.webp"
               className="sr-only"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={onReceiptChange}
             />
           </label>
         )}

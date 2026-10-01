@@ -68,6 +68,18 @@ export async function createDevice(formData: FormData) {
     if (!error) {
       device = data
     } else if (!(error.message || "").toLowerCase().includes("duplicate")) {
+      // FIX: this used to only special-case the literal string "duplicate"
+      // in the Postgres error, which is what a colliding Ownx ID looks
+      // like — but migration 011 also adds a unique index on serial_number,
+      // which raises the exact same kind of "duplicate key" error. Re-check
+      // specifically which constraint fired so a real duplicate *serial*
+      // (a much more serious, possibly-fraudulent case) doesn't get quietly
+      // retried with a new Ownx ID and resubmitted — it should fail loudly.
+      if ((error.message || "").toLowerCase().includes("devices_serial_unique_idx")) {
+        throw new Error(
+          "A device with this serial number is already registered on Ownx. If this is a genuine duplicate registration, contact Ownx support.",
+        )
+      }
       throw new Error(error.message)
     } else {
       ownxId = generateOwnxId() // collision (rare) — retry with a new id
@@ -147,7 +159,7 @@ export async function recordSale(deviceId: string, formData: FormData) {
   })
   if (error) throw new Error(error.message)
 
-  await supabase.from("lifecycle_events").insert({
+  const { error: lifecycleError } = await supabase.from("lifecycle_events").insert({
     device_id: deviceId,
     event_type: "sale_recorded",
     status: "confirmed",
@@ -156,8 +168,20 @@ export async function recordSale(deviceId: string, formData: FormData) {
     title: "Sale recorded",
     detail: `Sold to ${toEmail}${salePrice ? ` for ₹${salePrice}` : ""}. Awaiting buyer acceptance.`,
   })
+  if (lifecycleError) throw new Error(lifecycleError.message)
 
-  await supabase.from("devices").update({ status: "sold" }).eq("id", deviceId)
+  // FIX: this used to be a direct `supabase.from("devices").update({status:
+  // "sold"})` call. `devices` has no UPDATE policy that grants a seller org
+  // write access to a device it doesn't manufacture, so under RLS this
+  // update matched zero rows and failed *silently* (Supabase doesn't error
+  // on an update that matches nothing) — the device's status never actually
+  // changed to "sold", which is the exact flag the guard above (`status
+  // !== "registered"`) depends on to stop a double-sell. Replaced with a
+  // SECURITY DEFINER RPC (migration 011) that re-verifies the caller's org
+  // membership itself and reports a real error if it can't proceed.
+  const { error: statusError } = await supabase.rpc("seller_mark_device_sold", { p_device_id: deviceId })
+  if (statusError) throw new Error(statusError.message)
+
   revalidatePath("/seller")
 }
 
@@ -172,7 +196,14 @@ export async function acceptDeviceTransfer(transferId: string) {
 
 export async function declineDeviceTransfer(transferId: string) {
   const { supabase } = await requireUser()
-  await supabase.from("device_transfers").update({ status: "declined", resolved_at: new Date().toISOString() }).eq("id", transferId)
+  // FIX: the error from this update was previously discarded entirely —
+  // if it failed (expired session, RLS edge case, etc.) the UI would still
+  // tell the person their decline succeeded.
+  const { error } = await supabase
+    .from("device_transfers")
+    .update({ status: "declined", resolved_at: new Date().toISOString() })
+    .eq("id", transferId)
+  if (error) throw new Error(error.message)
   revalidatePath("/transfers")
 }
 
@@ -216,15 +247,27 @@ export async function addRepairEvent(deviceId: string, formData: FormData) {
   if (error) throw new Error(error.message)
 
   if (resolvedDevice.asset_id && resolvedDevice.current_owner_id) {
-    await supabase.from("service_records").insert({
-      asset_id: resolvedDevice.asset_id,
-      owner_id: resolvedDevice.current_owner_id,
-      title,
-      notes: detail || null,
-      performed_by: org.name,
-      cost,
-      serviced_at: new Date().toISOString().slice(0, 10),
+    // FIX: this used to insert directly into `service_records` with
+    // `owner_id: resolvedDevice.current_owner_id` while running as the
+    // *repair shop's* session. The insert RLS policy on `service_records`
+    // requires `auth.uid() = owner_id`, which is never true for a repair
+    // shop acting on someone else's asset — so this insert was rejected by
+    // RLS every single time, and because the returned error was never
+    // checked, it failed completely silently. The signed repair event above
+    // still got logged on the device's timeline, but it never actually
+    // showed up in the owner's Service tab as the comment here always
+    // claimed. Replaced with a SECURITY DEFINER RPC (migration 011) that
+    // re-derives the asset/owner from the device record itself and inserts
+    // on their behalf, bypassing the (correctly) restrictive owner-only
+    // policy only for this one verified, audited path.
+    const { error: mirrorError } = await supabase.rpc("repair_add_service_record", {
+      p_device_id: deviceId,
+      p_title: title,
+      p_notes: detail || null,
+      p_performed_by: org.name,
+      p_cost: cost,
     })
+    if (mirrorError) throw new Error(mirrorError.message)
     revalidatePath(`/passport/${resolvedDevice.asset_id}`)
   }
 

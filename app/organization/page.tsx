@@ -77,8 +77,12 @@ export default async function Page() {
                   your business, then creates your organisation and emails you an invite. This is what makes the
                   &ldquo;Verified&rdquo; badge on a passport actually mean something.
                 </p>
+                {/* FIX: this link was missing its opening `<a` tag — bare
+                    attributes with a dangling `</a>` is a JSX syntax error
+                    and would fail the build. External URL, so kept as a
+                    plain anchor rather than next/link. */}
                 {formUrl ? (
-                  
+                  <a
                     href={formUrl}
                     target="_blank"
                     rel="noreferrer"

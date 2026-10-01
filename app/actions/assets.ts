@@ -31,6 +31,18 @@ export async function createDraftAsset(): Promise<{ assetId: string }> {
   return { assetId: data.id }
 }
 
+// FIX: nothing previously rate-limited or size-capped calls into the
+// Anthropic API. Since any logged-in user could call runExtraction /
+// runAiDiagnosis (see diagnose.ts) as many times as they liked with
+// arbitrarily large files, this was an open door to a large, unexpected API
+// bill — whether from a bug in a client retry loop or deliberate abuse.
+// MAX_INVOICE_BYTES caps a single extraction's input; the per-user,
+// per-day cap below is enforced by the `check_and_increment_ai_usage` RPC
+// added in migration 011 (SECURITY DEFINER, so the count can't be read or
+// reset from the client).
+const MAX_INVOICE_BYTES = 15 * 1024 * 1024 // 15 MB
+const DAILY_EXTRACTION_LIMIT = 20
+
 // Step 2 (processing page): the invoice was already uploaded to Storage
 // client-side (see create/upload/page.tsx). This downloads it server-side
 // (so the Anthropic API key never touches the browser), runs the real
@@ -43,10 +55,25 @@ export async function runExtraction(params: {
 }): Promise<InvoiceExtraction> {
   const { supabase, user } = await requireUser()
 
+  const { data: allowed, error: rateLimitError } = await supabase.rpc("check_and_increment_ai_usage", {
+    p_kind: "invoice_extraction",
+    p_limit: DAILY_EXTRACTION_LIMIT,
+  })
+  if (rateLimitError) throw new Error(rateLimitError.message)
+  if (!allowed) {
+    throw new Error(
+      "You've hit today's limit for AI invoice extraction. Please try again tomorrow, or enter the details manually.",
+    )
+  }
+
   const { data: fileBlob, error: downloadError } = await supabase.storage
     .from("documents")
     .download(params.storagePath)
   if (downloadError || !fileBlob) throw new Error(downloadError?.message || "Could not read uploaded file")
+
+  if (fileBlob.size > MAX_INVOICE_BYTES) {
+    throw new Error("That file is larger than 15 MB — please upload a smaller invoice, or enter details manually.")
+  }
 
   await supabase.from("documents").insert({
     asset_id: params.assetId,
@@ -117,7 +144,7 @@ export async function confirmAsset(assetId: string, formData: FormData) {
       currency: String(formData.get("currency") || "INR"),
       warranty_months: warrantyMonths ? Number(warrantyMonths) : null,
       condition_score: conditionScore ? Number(conditionScore) : null,
-      // NEW: cover photo uploaded on the review step (see PhotoPicker in
+      // Cover photo uploaded on the review step (see PhotoPicker in
       // app/create/review/page.tsx). Empty string from the hidden input
       // means "no photo chosen" — normalize that to null rather than
       // storing "".
@@ -151,11 +178,11 @@ export async function updateAsset(assetId: string, formData: FormData) {
       purchase_price: purchasePrice ? Number(purchasePrice) : null,
       warranty_months: warrantyMonths ? Number(warrantyMonths) : null,
       condition_score: conditionScore ? Number(conditionScore) : null,
-      // NEW: allow the photo to be replaced from the passport page's edit
-      // form too, not just at creation. If passport-tabs.tsx's edit form
-      // doesn't include an image_url field, formData.get() returns null and
-      // this coalesces to undefined via the ?? below — so it's a no-op
-      // there until that form is updated to include a PhotoPicker as well.
+      // Allow the photo to be replaced from the passport page's edit form
+      // too, not just at creation. If passport-tabs.tsx's edit form doesn't
+      // include an image_url field, formData.get() returns null and this
+      // is a no-op there until that form is updated to include a
+      // PhotoPicker as well.
       ...(formData.has("image_url")
         ? { image_url: String(formData.get("image_url") || "").trim() || null }
         : {}),

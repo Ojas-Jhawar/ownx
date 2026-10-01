@@ -32,6 +32,13 @@ const ACTION_LABEL: Record<DiagnosticReport["recommendation_action"], string> = 
   keep_using: "Keep using",
 }
 
+// FIX: same unmetered-AI-call issue as app/actions/assets.ts's
+// runExtraction — nothing stopped a user from running AI Diagnose
+// repeatedly. Capped per-user, per-day via the same
+// check_and_increment_ai_usage RPC (migration 011), under its own "kind" so
+// the two features don't share one budget.
+const DAILY_DIAGNOSE_LIMIT = 10
+
 /**
  * Runs the AI Diagnose survey through the Anthropic API, saves the full
  * report to `ai_diagnoses`, updates the asset's live condition_score, and
@@ -45,6 +52,15 @@ export async function runAiDiagnosis(input: {
   deviceCheck: { os: string; command: string; output: string } | null
 }) {
   const { supabase, user } = await requireUser()
+
+  const { data: allowed, error: rateLimitError } = await supabase.rpc("check_and_increment_ai_usage", {
+    p_kind: "ai_diagnose",
+    p_limit: DAILY_DIAGNOSE_LIMIT,
+  })
+  if (rateLimitError) throw new Error(rateLimitError.message)
+  if (!allowed) {
+    throw new Error("You've reached today's limit for AI Diagnose runs. Please try again tomorrow.")
+  }
 
   const { data: assetRaw, error: assetError } = await supabase
     .from("assets")
