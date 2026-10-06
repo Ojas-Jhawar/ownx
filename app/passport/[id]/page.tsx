@@ -9,6 +9,7 @@ import { PassportShareButton } from "@/components/passport/share-button"
 import { createClient } from "@/lib/supabase/server"
 import { getAssetVerification } from "@/lib/verification"
 import { VerificationBadge } from "@/components/verification/verification-badge"
+import { RESALE_ENABLED } from "@/lib/features"
 import type { Asset, DocumentRow, ServiceRecord, OwnershipTransfer } from "@/lib/types"
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -167,7 +168,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               timeline={(timelineRaw as any[]) || []}
             />
 
-            {!listing && (
+            {RESALE_ENABLED && !listing && (
               <div className="mt-4 rounded-2xl border border-border bg-card p-6">
                 <h2 className="font-semibold text-ink">Ready to sell?</h2>
                 <p className="mt-1 text-sm text-muted-foreground">

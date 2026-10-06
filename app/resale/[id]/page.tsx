@@ -9,8 +9,11 @@ import { warrantyRemaining } from "@/lib/format"
 import { getAssetVerification } from "@/lib/verification"
 import { VerificationBadge } from "@/components/verification/verification-badge"
 import type { Asset } from "@/lib/types"
+import { RESALE_ENABLED } from "@/lib/features"
+
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  if (!RESALE_ENABLED) redirect("/marketplace")
   const { id } = await params
   const supabase = await createClient()
   const {
