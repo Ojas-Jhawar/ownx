@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getAssetVerification } from "@/lib/verification"
 import { VerificationBadge } from "@/components/verification/verification-badge"
 import { RESALE_ENABLED } from "@/lib/features"
+import { ReportLostCard } from "@/components/passport/report-lost-card"
 import type { Asset, DocumentRow, ServiceRecord, OwnershipTransfer } from "@/lib/types"
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -40,6 +41,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     supabase.from("passport_shares").select("*").eq("asset_id", id).eq("owner_id", user.id).eq("status", "active").maybeSingle(),
     supabase.from("ownership_transfers").select("*").eq("asset_id", id).eq("from_user_id", user.id).eq("status", "pending").maybeSingle(),
     supabase.from("ownership_transfers").select("*").eq("asset_id", id).eq("status", "accepted").order("resolved_at", { ascending: true }),
+    supabase.from("lost_reports").select("id, kind").eq("asset_id", id).eq("status", "open").maybeSingle()
   ])
 
   if (!assetRaw) notFound()
@@ -167,6 +169,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               device={deviceRaw as any}
               timeline={(timelineRaw as any[]) || []}
             />
+
+            <ReportLostCard assetId={asset.id} openReport={openReport} />
 
             {RESALE_ENABLED && !listing && (
               <div className="mt-4 rounded-2xl border border-border bg-card p-6">

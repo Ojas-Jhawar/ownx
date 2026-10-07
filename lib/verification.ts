@@ -31,6 +31,13 @@ export function verificationLabel(status: VerificationStatus) {
  *             = 'owner_resale') — real device, unverifiable current custody.
  * Unverified = no linked `devices` row at all — a self-reported asset.
  */
+
+export async function getPublicAssetVerification(supabase: SupabaseClient, assetId: string): Promise<VerificationStatus> {
+  const { data } = await supabase.rpc("public_asset_verification", { p_asset_id: assetId })
+  return (data as VerificationStatus) || "unverified"
+}
+
+
 export async function getAssetVerification(
   supabase: SupabaseClient,
   assetId: string,

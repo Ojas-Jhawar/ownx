@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
+import { sendEmail, esc } from "@/lib/email"
 
 async function requireUser() {
   const supabase = await createClient()
@@ -56,7 +57,11 @@ export async function initiateTransfer(assetId: string, formData: FormData) {
     status: "pending",
   })
   if (error) throw new Error(error.message)
-
+  await sendEmail({
+      to: toEmail,
+      subject: "Someone sent you an Ownx passport",
+      html: `<p>${esc(user.email || "An Ownx user")} sent you a passport.</p><p><a href="${process.env.NEXT_PUBLIC_SITE_URL}/transfers">Review the transfer</a></p>`,
+})
   const { data: linkedDevice } = await supabase.from("devices").select("id").eq("asset_id", assetId).maybeSingle()
   if (linkedDevice) {
     const { error: lifecycleError } = await supabase.from("lifecycle_events").insert({

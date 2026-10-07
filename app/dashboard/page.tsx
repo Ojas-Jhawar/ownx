@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server"
 import { formatINR, warrantyRemaining } from "@/lib/format"
 import { getAssetVerificationMap } from "@/lib/verification"
 import { VerificationBadge } from "@/components/verification/verification-badge"
+import { AttentionCard } from "@/components/dashboard/attention-card"
 import type { Asset } from "@/lib/types"
 
 export default async function Page({
@@ -77,6 +78,7 @@ export default async function Page({
         </div>
 
         <div className="mt-6 flex items-center justify-between">
+          {filter !== "warranty" && <AttentionCard assets={assets} />}
           <h2 className="font-semibold text-ink">{filter === "warranty" ? "Under Warranty" : "Your Assets"}</h2>
           {filter === "warranty" && (
             <Link href="/dashboard" className="text-sm font-medium text-brand">
