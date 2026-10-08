@@ -30,6 +30,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     { data: shareRaw },
     { data: pendingTransferRaw },
     { data: pastTransfersRaw },
+    { data: openReport}
   ] = await Promise.all([
     supabase.from("assets").select("*").eq("id", id).eq("owner_id", user.id).single(),
     supabase.from("documents").select("*").eq("asset_id", id).eq("owner_id", user.id).order("created_at", { ascending: false }),
