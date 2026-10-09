@@ -10,7 +10,7 @@ const STEPS = [
   { icon: ShieldCheck, title: "Verify", copy: "Confirm invoice and serial number." },
   { icon: IdCard, title: "Passport", copy: "Ownx builds your Ownership Passport." },
   { icon: Wrench, title: "Maintain", copy: "Add service and condition updates." },
-  { icon: RefreshCw, title: "Resell", copy: "Share verified history." },
+  { icon: RefreshCw, title: "Share", copy: "Send a read-only proof link." },
   { icon: Send, title: "Transfer", copy: "Pass the passport to the next owner." },
 ]
 
@@ -51,7 +51,7 @@ export default function Page() {
             </div>
             <div className="flex flex-col justify-center bg-brand-soft/60 p-8 sm:p-10">
               <h2 className="text-2xl font-semibold tracking-tight text-ink">
-                From receipt to resale — all in one place.
+                From receipt to repair — all in one place.
               </h2>
               <p className="mt-3 text-muted-foreground">
                 No lost documents. No broken trust. Just a complete history.

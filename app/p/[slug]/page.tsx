@@ -4,7 +4,7 @@ import { BadgeCheck, Check, ShieldCheck } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { createClient } from "@/lib/supabase/server"
 import { formatINR, warrantyRemaining } from "@/lib/format"
-import { getAssetVerification } from "@/lib/verification"
+import { getPublicAssetVerification } from "@/lib/verification"
 import { VerificationBadge } from "@/components/verification/verification-badge"
 import type { Asset } from "@/lib/types"
 
@@ -43,7 +43,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   // a manufacturer/seller, and has it stayed inside that verified network?
   // (See lib/verification.ts — previously computed but never rendered
   // anywhere; the header pill below said "Verified" unconditionally.)
-  const verification = await getAssetVerification(supabase, listing.asset_id)
+  const verification = await getPublicAssetVerification(supabase, listing.asset_id)
 
   const provenance = [
     "Original invoice",
@@ -106,7 +106,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         </div>
 
         <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-          <ShieldCheck className="size-4 text-brand" /> This is a verified listing powered by Ownx.
+          <ShieldCheck className="size-4 text-brand" />{" "}{verification === "verified" ? "Registered by a manufacturer or approved seller." : "Entered by the owner. Ownx has not verified this item."}
         </p>
       </div>
     </div>

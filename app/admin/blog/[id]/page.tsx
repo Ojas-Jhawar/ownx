@@ -12,7 +12,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { data: profile } = await supabase.from("profiles").select("platform_role").eq("id", user.id).single()
   if (profile?.platform_role !== "admin") redirect("/dashboard")
 
-  const { data: post } = await supabase.from("blog_posts").select("id, slug, title, excerpt, cover_image_url, content, category, status").eq("id", id).maybeSingle()
+  const { data: post } = await supabase.from("blog_posts").select("id, slug, title, excerpt, cover_image_url, content, category, status, tags").eq("id", id).maybeSingle()
   if (!post) notFound()
 
   return (

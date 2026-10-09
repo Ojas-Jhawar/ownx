@@ -300,7 +300,7 @@ function ReviewContent() {
             <LabeledInput
               id="condition_score"
               name="condition_score"
-              label="Condition score (0–100)"
+              label="Condition score (0–100, your estimate)"
               type="number"
               defaultValue={asset.condition_score ?? 90}
             />

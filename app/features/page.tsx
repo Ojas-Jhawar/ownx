@@ -8,7 +8,7 @@ const FEATURES = [
   { icon: ShieldCheck, title: "Warranty Tracking", copy: "Know what's still protected." },
   { icon: History, title: "Service History", copy: "Keep every repair in one timeline." },
   { icon: Gauge, title: "AI Condition Score", copy: "Turn condition into something measurable." },
-  { icon: BadgeCheck, title: "Verified Resale", copy: "Share history instead of making claims." },
+  { icon: BadgeCheck, title: "Verified Sharing", copy: "Show proof instead of making claims." },
   { icon: Send, title: "Ownership Transfer", copy: "Pass the passport to the next owner." },
   { icon: Lightbulb, title: "Repair-vs-Replace Advisor", copy: "Get smart suggestions for your asset." },
   { icon: Recycle, title: "Circularity Score", copy: "Track the life extended by every repair." },

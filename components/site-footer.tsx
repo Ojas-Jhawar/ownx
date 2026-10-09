@@ -16,6 +16,8 @@ const COLUMNS = [
       // for no reason and listed the same destination twice under different
       // labels. Point straight at the canonical URL instead.
       { label: "Device Advisor", href: "/tools/device-advisor" },
+      { label: "Scrap Value", href: "/tools/scrap-value" },
+      { label: "Check an Item", href: "/check" },
       { label: "Blog", href: "/blog" },
     ],
   },
@@ -30,8 +32,8 @@ const COLUMNS = [
   {
     title: "Legal",
     links: [
-      { label: "Privacy", href: "#" },
-      { label: "Terms", href: "#" },
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms", href: "/terms" },
     ],
   },
 ]

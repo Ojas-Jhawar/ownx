@@ -173,6 +173,17 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
             <ReportLostCard assetId={asset.id} openReport={openReport} />
 
+            <div className="mt-4 rounded-2xl border border-border bg-card p-6">
+              <h2 className="font-semibold text-ink">What is it worth as scrap?</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Estimate its recycling value from its materials, prefilled from this passport.</p>
+              <Link
+                href={`/tools/scrap-value?${new URLSearchParams({ cat: asset.category || "", date: asset.purchase_date || "", price: String(asset.purchase_price ?? ""), condition: String(asset.condition_score ?? "") }).toString()}`}
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-medium text-ink hover:bg-muted"
+              >
+                Check scrap value <ArrowRight className="size-4" />
+              </Link>
+            </div>
+
             {RESALE_ENABLED && !listing && (
               <div className="mt-4 rounded-2xl border border-border bg-card p-6">
                 <h2 className="font-semibold text-ink">Ready to sell?</h2>

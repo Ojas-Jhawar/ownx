@@ -5,7 +5,7 @@ const STAGES = [
   { icon: ShoppingBag, title: "Purchase", copy: "Invoice + serial" },
   { icon: ShieldCheck, title: "Protect", copy: "Warranty tracking" },
   { icon: Wrench, title: "Maintain", copy: "Service history" },
-  { icon: RefreshCw, title: "Resell", copy: "Verified ownership" },
+  { icon: RefreshCw, title: "Share", copy: "Proof on demand" },
 ]
 
 export function Lifecycle() {

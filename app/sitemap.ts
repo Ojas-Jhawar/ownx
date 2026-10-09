@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
-  const staticPaths = ["", "/how-it-works", "/features", "/about", "/blog", "/tools/device-advisor", "/marketplace", "/privacy", "/terms"]
+  const staticPaths = ["", "/how-it-works", "/features", "/about", "/blog", "/tools/device-advisor", "/marketplace", "/privacy", "/terms", "/check", "/tools/scrap-value"]
 
   let posts: { slug: string; published_at: string | null }[] = []
   try {

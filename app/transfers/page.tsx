@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/server"
 import { formatDate } from "@/lib/format"
 import { TransferActions } from "@/components/transfers/transfer-actions"
 import type { Asset, OwnershipTransfer } from "@/lib/types"
-import { acceptDeviceTransfer, declineDeviceTransfer } from "@/app/actions/devices"
 import { DeviceTransferActions } from "@/components/transfers/device-transfer-actions"
 
 export default async function Page() {
@@ -34,7 +33,7 @@ export default async function Page() {
     .from("device_transfers")
     .select("*, devices ( product_name, brand, ownx_id, image_url )")
     .eq("status", "pending")
-    .ilike("to_email", user.email || "")
+    .eq("to_email", (user.email || "").toLowerCase())
     
   const incoming = (incomingRaw as OwnershipTransfer[]) || []
   const outgoing = (outgoingRaw as OwnershipTransfer[]) || []

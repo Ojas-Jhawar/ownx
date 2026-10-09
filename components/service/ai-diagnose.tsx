@@ -21,7 +21,7 @@ const ACTION_META: Record<RecommendationAction, { label: string; icon: typeof Sh
   buy_accessory: { label: "Buy an accessory", icon: ShoppingBag, tone: "text-brand" },
   upgrade: { label: "Upgrade", icon: ArrowUpCircle, tone: "text-brand" },
   repair: { label: "Repair", icon: Wrench, tone: "text-amber-600" },
-  sell: { label: "Sell it", icon: Store, tone: "text-brand" },
+  sell: { label: "Consider selling later", icon: Store, tone: "text-brand" },
   recycle: { label: "Recycle", icon: Recycle, tone: "text-muted-foreground" },
   keep_using: { label: "Keep using", icon: CheckCircle2, tone: "text-emerald-600" },
 }

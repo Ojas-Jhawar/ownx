@@ -77,8 +77,10 @@ export default async function Page({
           ))}
         </div>
 
+        {filter !== "warranty" && <AttentionCard assets={assets} />}
+
         <div className="mt-6 flex items-center justify-between">
-          <h2 className="font-semibold text-ink">{filter === "warranty" ? "Under Warranty" : "Your Assets"}   {filter !== "warranty" && <AttentionCard assets={assets} />} </h2>
+          <h2 className="font-semibold text-ink">{filter === "warranty" ? "Under Warranty" : "Your Assets"} </h2>
           {filter === "warranty" && (
             <Link href="/dashboard" className="text-sm font-medium text-brand">
               Show all

@@ -13,23 +13,28 @@ import {
   ArrowRightLeft,
   Building2,
   UserCog,
+  PenLine,
 } from "lucide-react"
 import { Logo } from "@/components/logo"
+import { RESALE_ENABLED } from "@/lib/features"
 import { cn } from "@/lib/utils"
 import { initials } from "@/lib/format"
 import { createClient } from "@/lib/supabase/client"
 
 type NavItem = { label: string; href: string; icon: typeof LayoutGrid }
 
-const BASE_NAV: NavItem[] = [
+const ALL_BASE_NAV: NavItem[] = [
   { label: "Overview", href: "/dashboard", icon: LayoutGrid },
   { label: "Warranty", href: "/dashboard?filter=warranty", icon: ShieldCheck },
   { label: "Service", href: "/service", icon: Wrench },
   { label: "Transfers", href: "/transfers", icon: ArrowRightLeft },
   { label: "Marketplace", href: "/marketplace", icon: Store },
 ]
+const BASE_NAV = ALL_BASE_NAV.filter((i) => RESALE_ENABLED || i.label !== "Marketplace")
 const BUSINESS_ITEM: NavItem = { label: "Business", href: "/organization", icon: Building2 }
 const ADMIN_ITEM: NavItem = { label: "Admin", href: "/admin/organizations", icon: UserCog }
+const ADMIN_BLOG_ITEM: NavItem = { label: "Blog", href: "/admin/blog", icon: PenLine }
+const ADMIN_SCRAP_ITEM: NavItem = { label: "Scrap rates", href: "/admin/scrap-rates", icon: Wrench }
 const SETTINGS_ITEM: NavItem = { label: "Settings", href: "/settings", icon: Settings }
 
 export function AppShell({
@@ -79,7 +84,7 @@ export function AppShell({
   const NAV: NavItem[] = [
     ...BASE_NAV,
     ...(hasOrg || isAdmin ? [BUSINESS_ITEM] : []),
-    ...(isAdmin ? [ADMIN_ITEM] : []),
+    ...(isAdmin ? [ADMIN_ITEM, ADMIN_BLOG_ITEM, ADMIN_SCRAP_ITEM] : []),
     SETTINGS_ITEM,
   ]
 

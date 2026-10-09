@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { Menu, X } from "lucide-react"
 import { Logo } from "@/components/logo"
+import { RESALE_ENABLED } from "@/lib/features"
 import { cn } from "@/lib/utils"
 
-const NAV = [
+const ALL_NAV = [
   { label: "How It Works", href: "/how-it-works" },
   { label: "Features", href: "/features" },
   { label: "Marketplace", href: "/marketplace" },
@@ -16,8 +17,11 @@ const NAV = [
   // in primary nav rather than being effectively hidden below the fold.
   { label: "Device Advisor", href: "/tools/device-advisor" },
   { label: "Blog", href: "/blog" },
+  { label: "Check an Item", href: "/check" },
   { label: "About", href: "/about" },
 ]
+
+const NAV = ALL_NAV.filter((i) => RESALE_ENABLED || i.href !== "/marketplace")
 
 export function SiteHeader() {
   const pathname = usePathname()

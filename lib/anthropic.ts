@@ -76,7 +76,7 @@ export async function extractInvoiceData(params: {
       : { type: "image" as const, source: { type: "base64" as const, media_type: params.mediaType, data: params.base64 } }
 
   const response = await client.messages.create({
-    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
+    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
     max_tokens: 1024,
     system:
       "You extract structured purchase data from invoices and receipts for a product-passport app. " +
@@ -218,7 +218,7 @@ export async function generateDiagnosticReport(params: {
   }
 
   const response = await client.messages.create({
-    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
+    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
     max_tokens: 1200,
     system:
       "You are the AI Diagnose engine for a product-ownership app. Given a survey about a physical item's condition " +
@@ -240,4 +240,51 @@ export async function generateDiagnosticReport(params: {
   }
 
   return toolUse.input as DiagnosticReport
+}
+
+
+// ----------------------------------------------------------------------------
+// Blog drafting (admin only, saved as a draft for a human to review)
+// ----------------------------------------------------------------------------
+export interface BlogDraft {
+  title: string
+  excerpt: string
+  content: string
+  category: "guide" | "maintenance" | "sustainability" | "news"
+  tags: string[]
+}
+
+const BLOG_TOOL = {
+  name: "record_blog_draft",
+  description: "Record a draft blog post.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      title: { type: "string" },
+      excerpt: { type: "string", description: "Max 180 characters." },
+      content: { type: "string", description: "Markdown. Use ## headings, short paragraphs, lists. 500 to 800 words." },
+      category: { type: "string", enum: ["guide", "maintenance", "sustainability", "news"] },
+      tags: { type: "array", items: { type: "string" }, description: "2 to 5 lowercase tags." },
+    },
+    required: ["title", "excerpt", "content", "category", "tags"],
+  },
+}
+
+export async function generateBlogDraft(topic: string): Promise<BlogDraft> {
+  const response = await client.messages.create({
+    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
+    max_tokens: 3000,
+    system:
+      "You write helpful, plain-language blog posts for Ownx, an ownership-passport app for physical products, for readers in India. " +
+      "Be practical and specific. Never invent statistics, laws, prices or quotes. If you are unsure of a fact, leave it out or say " +
+      "\"check current rules\". Add a one-line 'not legal or financial advice' note when touching on law or money. " +
+      "End with a short call to action to create an Ownx passport. Do not use hype.",
+    messages: [{ role: "user", content: `Write a blog post about: ${topic}` }],
+    tools: [BLOG_TOOL],
+    tool_choice: { type: "tool", name: "record_blog_draft" },
+  })
+  const toolUse = response.content.find((b) => b.type === "tool_use")
+  if (!toolUse || toolUse.type !== "tool_use") throw new Error("No draft returned")
+  const d = toolUse.input as BlogDraft
+  return { ...d, tags: (d.tags || []).slice(0, 5) }
 }
