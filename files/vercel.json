@@ -1,6 +1,0 @@
-{
-  "crons": [
-    { "path": "/api/cron/warranty", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/scrap-rates", "schedule": "0 5 * * 1" }
-  ]
-}
